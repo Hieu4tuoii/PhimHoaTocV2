@@ -1,22 +1,39 @@
 {
-  "name": "Phim Hoa Toc - Xem Phim Premium Sieu Toc Do",
+  "id": "/",
+  "name": "PhimHoaToc - Xem Phim Premium Siêu Tốc Độ",
   "short_name": "PhimHoaToc",
-  "description": "Ung dung xem phim hoat hinh, phim bo, phim le toc do cao, premium chat luong tot nhat.",
+  "description": "Ứng dụng xem phim hoạt hình, phim bộ, phim lẻ tốc độ cao, premium chất lượng tốt nhất.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#e50914",
   "orientation": "portrait",
+  "categories": ["entertainment"],
   "icons": [
     {
-      "src": "/placeholder-movie.jpg",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/placeholder-movie.jpg",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

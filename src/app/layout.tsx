@@ -24,7 +24,8 @@ export default function RootLayout({
   return (
     <html lang="vi" className={`${outfit.variable} h-full antialiased`}>
       <head>
-        <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#e50914" />
       </head>
