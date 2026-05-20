@@ -41,6 +41,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mouseMoveThrottleRef = useRef(false);
+  const lastClickTimeRef = useRef(0);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
@@ -93,6 +94,20 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
   }, []);
+
+  // 2.2. Auto-hide controls based on play/pause status
+  useEffect(() => {
+    if (isPlaying) {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    } else {
+      setShowControls(true);
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    }
+  }, [isPlaying]);
+
 
   // Performance: formatTime as a stable helper (no dependency on state)
   const formatTime = useCallback((timeInSeconds: number) => {
@@ -307,6 +322,43 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
+  const handlePlayerClick = useCallback((e: React.MouseEvent) => {
+    // Chỉ xử lý nếu click vào vùng trống (không click vào các phần tử tương tác như button, input, a, hoặc div chứa cụ thể)
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === 'BUTTON' || 
+      target.tagName === 'INPUT' || 
+      target.tagName === 'A' || 
+      target.closest('.controls-prevent-click')
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Ghi nhận thời điểm click để ngăn mousemove nhận diện nhầm do rung tay/nhích chuột nhẹ
+    lastClickTimeRef.current = Date.now();
+
+    if (isPlaying) {
+      // Nếu phim đang phát, click vào vùng trống sẽ ẩn/hiện các thanh điều khiển ngay lập tức
+      setShowControls((prev) => {
+        const nextState = !prev;
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (nextState) {
+          // Nếu hiện lại controls, tự động ẩn sau 3 giây của inactivity
+          controlsTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+          }, 3000);
+        }
+        return nextState;
+      });
+    } else {
+      // Nếu phim đang pause, click vào vùng trống sẽ phát tiếp video
+      togglePlay();
+    }
+  }, [isPlaying, togglePlay]);
+
   const handleSeekChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;
     if (!video) return;
@@ -337,6 +389,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // Performance: Throttled mouse move handler (max 1 call per 300ms)
   const handleMouseMove = useCallback(() => {
+    // Ngăn chặn mousemove làm hiện lại controls ngay sau khi click ẩn controls (trong vòng 800ms)
+    if (Date.now() - lastClickTimeRef.current < 800) return;
+
     if (mouseMoveThrottleRef.current) return;
     mouseMoveThrottleRef.current = true;
 
@@ -355,7 +410,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, [isPlaying]);
 
   return (
-    <div className="w-full space-y-8 animate-slide-up" onMouseMove={handleMouseMove}>
+    <div className="w-full space-y-8 animate-slide-up">
       
       {/* 1. CINEMA BACKDROP OVERLAY OVER WHOLE PAGE */}
       <div 
@@ -364,11 +419,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       />
 
       {/* 2. CINEMA PLAYER CONTAINER */}
-      <div className={`custom-player-container relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl z-40 transition-all duration-500 ${
-        isCinemaMode 
-          ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
-          : 'shadow-black/60'
-      }`}>
+      <div 
+        className={`custom-player-container relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl z-40 transition-all duration-500 ${
+          isCinemaMode 
+            ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
+            : 'shadow-black/60'
+        }`}
+        onMouseMove={handleMouseMove}
+      >
         
         {/* Play HLS m3u8 Mode */}
         {playMode === 'hls' && activeEpisode.link_m3u8 && (
@@ -376,16 +434,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             <video
               ref={videoRef}
               className="w-full h-full object-contain"
-              onClick={togglePlay}
+              onClick={handlePlayerClick}
               playsInline
             />
 
             {/* Custom Overlay Controls */}
-            <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40 flex flex-col justify-between p-4 transition-opacity duration-300 ${
-              showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}>
+            <div 
+              className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40 flex flex-col justify-between p-4 transition-opacity duration-300 ${
+                showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+              onClick={handlePlayerClick}
+            >
               {/* Top controls: Movie titles */}
-              <div className="flex justify-between items-start">
+              <div className="flex justify-between items-start controls-prevent-click">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-base text-white">{movie.name}</h3>
                   <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
@@ -413,7 +474,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               )}
 
               {/* Bottom controls panel */}
-              <div className="space-y-3 w-full">
+              <div className="space-y-3 w-full controls-prevent-click">
                 
                 {/* Progress bar timeline */}
                 <div className="flex items-center gap-3">
