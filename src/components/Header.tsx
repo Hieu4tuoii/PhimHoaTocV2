@@ -97,7 +97,7 @@ export const Header: React.FC = () => {
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group flex-shrink-0">
@@ -209,12 +209,12 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Quick Actions (Watchlist, History) & Mobile Menu Toggle */}
-          <div className="flex items-center space-x-3 flex-shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-3 flex-shrink-0">
             {/* Install App Button */}
             {mounted && !isStandalone && (
               <button
                 onClick={installApp}
-                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5"
+                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5"
                 title="Tải ứng dụng Web-App"
               >
                 <Download className="w-4 h-4" />

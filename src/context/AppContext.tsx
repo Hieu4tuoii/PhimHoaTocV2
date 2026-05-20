@@ -145,7 +145,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsInstallable(false);
       }
     } else {
-      // Không có prompt tự động (iOS Safari hoặc chưa nhận diện kịp) -> Hiện modal hướng dẫn cài đặt thủ công
+      // Không có deferredPrompt — thử chờ Service Worker ready rồi lắng nghe event trong 3s
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.ready;
+          // Chờ tối đa 3s xem beforeinstallprompt có fire không
+          const promptEvent = await new Promise<Event | null>((resolve) => {
+            const timer = setTimeout(() => resolve(null), 3000);
+            const handler = (e: Event) => {
+              e.preventDefault();
+              clearTimeout(timer);
+              window.removeEventListener('beforeinstallprompt', handler);
+              resolve(e);
+            };
+            window.addEventListener('beforeinstallprompt', handler);
+          });
+
+          if (promptEvent) {
+            // Prompt đã fire — trigger cài đặt ngay
+            (promptEvent as any).prompt();
+            const { outcome } = await (promptEvent as any).userChoice;
+            console.log(`PWA: User response (retry): ${outcome}`);
+            setDeferredPrompt(null);
+            setIsInstallable(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('PWA: SW ready check failed:', err);
+        }
+      }
+      // Fallback: Hiện modal hướng dẫn cài đặt thủ công
       setShowInstallModal(true);
     }
   }, [deferredPrompt]);
@@ -442,22 +471,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             {/* Action Footer */}
             <div className="mt-6 flex gap-3 justify-end relative z-10">
               <button
+                onClick={() => {
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(window.location.origin);
+                  }
+                }}
+                className="px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-700/50 rounded-xl hover:border-slate-600"
+              >
+                📋 Sao chép link
+              </button>
+              <button
                 onClick={() => setShowInstallModal(false)}
                 className="px-4 py-2.5 text-xs font-bold text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 Để sau
               </button>
-              {deferredPrompt && (
-                <button
-                  onClick={() => {
-                    setShowInstallModal(false);
+              <button
+                onClick={async () => {
+                  setShowInstallModal(false);
+                  if (deferredPrompt) {
+                    // Có prompt sẵn — trigger native install ngay
                     installApp();
-                  }}
-                  className="px-5 py-2.5 bg-gradient-brand text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer hover:brightness-110 transform active:scale-98 transition-all"
-                >
-                  Tải Ngay
-                </button>
-              )}
+                  } else if ('serviceWorker' in navigator) {
+                    // Thử chờ SW ready rồi lắng nghe event 3s
+                    try {
+                      await navigator.serviceWorker.ready;
+                      const promptEvent = await new Promise<Event | null>((resolve) => {
+                        const timer = setTimeout(() => resolve(null), 3000);
+                        const handler = (e: Event) => {
+                          e.preventDefault();
+                          clearTimeout(timer);
+                          window.removeEventListener('beforeinstallprompt', handler);
+                          resolve(e);
+                        };
+                        window.addEventListener('beforeinstallprompt', handler);
+                      });
+                      if (promptEvent) {
+                        (promptEvent as any).prompt();
+                        await (promptEvent as any).userChoice;
+                        return;
+                      }
+                    } catch { /* ignore */ }
+                    // Nếu vẫn thất bại — hiện thông báo ngắn bằng alert
+                    alert('Trình duyệt chưa hỗ trợ cài đặt trực tiếp. Hãy thử mở bằng Chrome/Edge trên HTTPS và làm theo hướng dẫn ở trên.');
+                  }
+                }}
+                className="px-5 py-2.5 bg-gradient-brand text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer hover:brightness-110 transform active:scale-98 transition-all"
+              >
+                Tải Ngay
+              </button>
             </div>
           </div>
         </div>
