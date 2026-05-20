@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Filter, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import { Filter, SlidersHorizontal, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { Genre, Country } from '@/types';
 
 interface DiscoverFilterBarProps {
@@ -40,15 +40,8 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
   const [year, setYear] = useState(currentYear);
   const [sortField, setSortField] = useState(currentSort);
 
-  // State quản lý thu gọn xổ ra cho mobile
+  // State quản lý thu gọn xổ ra - Mặc định là thu nhỏ
   const [isCollapsed, setIsCollapsed] = useState(true);
-
-  // Tự động mở rộng bộ lọc trên màn hình lớn từ tablet trở lên
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-      setIsCollapsed(false);
-    }
-  }, []);
 
   // Đồng bộ trạng thái khi URL query thay đổi
   useEffect(() => {
@@ -94,18 +87,22 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
   return (
     <div className="w-full bg-white/3 border border-white/5 p-5 sm:p-6 rounded-2xl backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/8">
       {/* Header của Bộ lọc */}
-      <div 
-        onClick={() => {
-          if (typeof window !== 'undefined' && window.innerWidth < 768) {
-            setIsCollapsed(!isCollapsed);
-          }
-        }}
-        className="flex items-center justify-between border-b border-white/5 pb-4 cursor-pointer md:cursor-default"
-      >
-        <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-widest flex items-center gap-2 select-none">
-          <SlidersHorizontal className="w-4 h-4 text-brand-rose" />
-          BỘ LỌC TÌM KIẾM THÔNG MINH
-        </h4>
+      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+        <div 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex items-center gap-2 cursor-pointer select-none group"
+          title={isCollapsed ? "Nhấn để mở rộng bộ lọc" : "Nhấn để thu nhỏ bộ lọc"}
+        >
+          <SlidersHorizontal className="w-4 h-4 text-brand-rose transition-transform group-hover:scale-110" />
+          <h4 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-widest">
+            BỘ LỌC PHIM
+          </h4>
+          {isCollapsed ? (
+            <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-slate-350 transition-all duration-300" />
+          ) : (
+            <ChevronUp className="w-4 h-4 text-slate-550 group-hover:text-white transition-all duration-300" />
+          )}
+        </div>
         <div className="flex items-center gap-2.5">
           {hasActiveFilters && (
             <button
@@ -119,25 +116,10 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
               <span className="hidden xs:inline">Làm mới</span>
             </button>
           )}
-          
-          {/* Nút bấm ẩn hiện chỉ hiện trên Mobile */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsCollapsed(!isCollapsed);
-            }}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-slate-400 hover:text-white md:hidden active:scale-90 transition-all cursor-pointer outline-none"
-          >
-            {isCollapsed ? (
-              <span className="text-[10px] font-black uppercase text-brand-rose bg-brand-rose/10 border border-brand-rose/20 px-2.5 py-1 rounded-md">Hiện bộ lọc</span>
-            ) : (
-              <span className="text-[10px] font-black uppercase text-slate-400 bg-white/5 px-2.5 py-1 rounded-md">Thu gọn</span>
-            )}
-          </button>
         </div>
       </div>
 
-      {/* Khối selectors - Hỗ trợ thu gọn xổ ra cực mượt trên di động */}
+      {/* Khối selectors - Luôn luôn hiển thị trực quan */}
       <div className={`transition-all duration-500 ease-in-out overflow-hidden ${
         isCollapsed 
           ? 'max-h-0 opacity-0 pointer-events-none mt-0' 

@@ -658,7 +658,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
             }`}
           >
-            Server HLS (Tốc độ cao - Khuyên dùng)
+            VIP
           </button>
           <button
             onClick={() => setPlayMode('embed')}
@@ -668,7 +668,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
             }`}
           >
-            Server Iframe (Dự phòng khi lag/lỗi)
+            Dự phòng
           </button>
         </div>
       )}
@@ -787,7 +787,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           <div className="space-y-1">
             <h5 className="font-bold text-xs text-slate-300">Gặp sự cố khi tải phim?</h5>
             <p className="text-xs text-slate-500 leading-normal font-medium">
-              Nếu phim không tải được, bạn vui lòng chuyển đổi nguồn phát bằng cách bấm nút **"Chuyển Server Iframe"** hoặc đổi sang **Server 2** ở bảng trên để khắc phục sự cố.
+              Nếu phim không tải được, bạn vui lòng chuyển đổi nguồn phát bằng cách bấm nút **"Dự phòng"** hoặc đổi sang các server khác ở bảng trên để khắc phục sự cố.
             </p>
           </div>
         </div>

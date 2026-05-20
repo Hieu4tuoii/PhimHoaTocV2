@@ -179,16 +179,18 @@ export default async function SearchPage({ searchParams }: PageProps) {
           />
         </div>
 
-        {/* 3. Tiêu đề hiển thị động báo kết quả */}
-        <div className="border-b border-slate-900 pb-4 space-y-1.5">
-          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-            <IconHeader className="w-5 h-5 text-brand-rose" />
-            {displayTitle}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 font-semibold leading-relaxed">
-            {subTitle}
-          </p>
-        </div>
+        {/* 3. Tiêu đề hiển thị động báo kết quả (Chỉ hiển thị khi thực sự tìm kiếm hoặc lọc) */}
+        {(keyword || hasFilters) && (
+          <div className="border-b border-slate-900 pb-4 space-y-1.5">
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              <IconHeader className="w-5 h-5 text-brand-rose" />
+              {displayTitle}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 font-semibold leading-relaxed">
+              {subTitle}
+            </p>
+          </div>
+        )}
 
         {/* 4. Hiển thị Grid danh sách phim */}
         {movies.length > 0 ? (

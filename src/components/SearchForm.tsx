@@ -27,45 +27,11 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
     }
   }, [autoFocus]);
 
-  // Cơ chế tìm kiếm Debounce (Instant Search) kết hợp giữ nguyên bộ lọc
-  useEffect(() => {
-    // Tránh kích hoạt chuyển hướng nếu keyword nhập vào trùng khớp với từ khóa đang có sẵn trên URL
-    if (keyword.trim() === initialKeyword.trim()) {
-      return;
-    }
-
-    const delayDebounceFn = setTimeout(() => {
-      const trimmed = keyword.trim();
-      const queryParams = new URLSearchParams();
-
-      // Giữ lại các bộ lọc hiện tại trên URL để tìm kiếm kết hợp
-      const type = searchParams.get('type');
-      const category = searchParams.get('category');
-      const country = searchParams.get('country');
-      const year = searchParams.get('year');
-      const sortField = searchParams.get('sort_field');
-
-      if (type) queryParams.set('type', type);
-      if (category) queryParams.set('category', category);
-      if (country) queryParams.set('country', country);
-      if (year) queryParams.set('year', year);
-      if (sortField) queryParams.set('sort_field', sortField);
-
-      if (trimmed) {
-        queryParams.set('keyword', trimmed);
-      } else {
-        // Nếu xóa keyword, vẫn giữ các bộ lọc nâng cao
-        queryParams.delete('keyword');
-      }
-
-      router.push(`/tim-kiem?${queryParams.toString()}`);
-    }, 450); // Đợi 450ms sau khi người dùng ngừng gõ thì tự động kích hoạt tìm kiếm
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [keyword, initialKeyword, router, searchParams]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (inputRef.current) {
+      inputRef.current.blur(); // Tự động đóng bàn phím di động trên mobile khi bấm Enter
+    }
     const trimmed = keyword.trim();
     const queryParams = new URLSearchParams();
 
