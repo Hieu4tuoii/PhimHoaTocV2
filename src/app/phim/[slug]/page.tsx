@@ -101,6 +101,11 @@ export default async function MovieDetailPage({ params }: PageProps) {
               <h2 className="text-base sm:text-xl text-slate-400 font-semibold italic drop-shadow-sm">
                 {movie.origin_name} ({movie.year})
               </h2>
+
+              {/* Nút Xem ngay & Yêu thích trên màn Mobile (hiển thị ngay dưới tên phim) */}
+              <div className="md:hidden w-full pt-4">
+                <MovieDetailClient movie={movie} episodes={episodes} mode="buttons-only" />
+              </div>
             </div>
 
             {/* Quick Metadata Info grid for details */}
@@ -217,8 +222,13 @@ export default async function MovieDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* Interactive Client Panel (Buttons, Synopsis, Episodes Select, Comments Section) */}
-            <MovieDetailClient movie={movie} episodes={episodes} />
+            {/* Nút Xem ngay & Yêu thích trên màn Desktop (vị trí cũ) */}
+            <div className="hidden md:block w-full">
+              <MovieDetailClient movie={movie} episodes={episodes} mode="buttons-only" />
+            </div>
+
+            {/* Nội dung tóm tắt & danh sách tập phim (hiện trên cả mobile và desktop) */}
+            <MovieDetailClient movie={movie} episodes={episodes} mode="content-only" />
 
           </div>
         </div>

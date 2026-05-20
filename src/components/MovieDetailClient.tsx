@@ -9,9 +9,10 @@ import { MovieDetail, MovieServer, MovieShort } from '@/types';
 interface MovieDetailClientProps {
   movie: MovieDetail;
   episodes: MovieServer[];
+  mode?: 'all' | 'buttons-only' | 'content-only';
 }
 
-export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, episodes }) => {
+export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, episodes, mode = 'all' }) => {
   const { watchlist, addToWatchlist, removeFromWatchlist, isInWatchlist, getMovieLastWatchedEpisode, history } = useApp();
   const [isFavorite, setIsFavorite] = useState(false);
   const [lastWatched, setLastWatched] = useState<any>(null);
@@ -34,8 +35,6 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
       setLastWatched(watchedInfo);
     }
   }, [watchlist, history, movie.slug]);
-
-
 
   const handleFavoriteToggle = () => {
     const movieShort: MovieShort = {
@@ -60,7 +59,6 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
     }
   };
 
-
   // Determine watch link: if history exists, watch that episode. Otherwise, watch first episode.
   const watchLink = (mounted && lastWatched)
     ? `/xem-phim/${movie.slug}/${lastWatched.episodeSlug}`
@@ -75,9 +73,8 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
   const isFavActive = mounted ? isFavorite : false;
   const watchedInfoActive = mounted ? lastWatched : null;
 
-  return (
-    <div className="space-y-8">
-      {/* 1. Watch & Watchlist Interactive Buttons Container */}
+  const renderButtons = () => {
+    return (
       <div className="flex flex-col sm:flex-row gap-4 w-full">
         {watchLink !== '#' ? (
           <Link
@@ -127,95 +124,115 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
           <span>{isFavActive ? 'Đã yêu thích' : 'Yêu thích'}</span>
         </button>
       </div>
+    );
+  };
 
-      {/* 2. Movie Content / Synopsis */}
-      <div className="space-y-3.5 bg-white/3 border border-white/5 p-6 rounded-2xl backdrop-blur-sm shadow-xl transition-all duration-300 hover:border-white/8">
-        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-          <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
-          Nội Dung Tóm Tắt
-        </h3>
-        <div className="text-slate-300 text-sm leading-relaxed space-y-4 font-medium">
-          <div className={`transition-all duration-500 ${isExpanded ? '' : 'line-clamp-4'}`}>
-            {movie.content ? (
-              <div dangerouslySetInnerHTML={{ __html: movie.content }} className="prose prose-invert prose-sm max-w-none text-slate-300" />
-            ) : (
-              <p className="italic text-slate-400">Hiện tại chưa có mô tả nội dung chi tiết cho phim "{movie.name}". Dữ liệu đang được chúng tôi cập nhật sớm nhất.</p>
-            )}
-          </div>
-          
-          {movie.content && movie.content.length > 250 && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-1 text-xs font-black uppercase tracking-wider text-brand-cyan hover:text-brand-rose transition-colors pt-2 cursor-pointer group"
-            >
-              {isExpanded ? (
-                <>Thu gọn <ChevronUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" /></>
+  const renderContent = () => {
+    return (
+      <div className="space-y-8">
+        {/* 2. Movie Content / Synopsis */}
+        <div className="space-y-3.5 bg-white/3 border border-white/5 p-6 rounded-2xl backdrop-blur-sm shadow-xl transition-all duration-300 hover:border-white/8">
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
+            Nội Dung Tóm Tắt
+          </h3>
+          <div className="text-slate-300 text-sm leading-relaxed space-y-4 font-medium">
+            <div className={`transition-all duration-500 ${isExpanded ? '' : 'line-clamp-4'}`}>
+              {movie.content ? (
+                <div dangerouslySetInnerHTML={{ __html: movie.content }} className="prose prose-invert prose-sm max-w-none text-slate-300" />
               ) : (
-                <>Xem thêm <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" /></>
+                <p className="italic text-slate-400">Hiện tại chưa có mô tả nội dung chi tiết cho phim "{movie.name}". Dữ liệu đang được chúng tôi cập nhật sớm nhất.</p>
               )}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 3. Episode Selector Section */}
-      {episodes.length > 0 ? (
-        <div className="space-y-5 bg-white/3 border border-white/5 p-6 rounded-2xl backdrop-blur-sm shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
-              Chọn Tập Phim
-            </h3>
+            </div>
             
-            {/* Server Tabs */}
-            {episodes.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
-                {episodes.map((server, idx) => (
-                  <button
-                    key={server.server_name}
-                    onClick={() => setSelectedServerIndex(idx)}
-                    className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border ${
-                      selectedServerIndex === idx
-                        ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
-                        : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
-                    }`}
-                  >
-                    {server.server_name}
-                  </button>
-                ))}
-              </div>
+            {movie.content && movie.content.length > 250 && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-1 text-xs font-black uppercase tracking-wider text-brand-cyan hover:text-brand-rose transition-colors pt-2 cursor-pointer group"
+              >
+                {isExpanded ? (
+                  <>Thu gọn <ChevronUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" /></>
+                ) : (
+                  <>Xem thêm <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" /></>
+                )}
+              </button>
             )}
           </div>
+        </div>
 
-          {/* Episodes List Grid */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
-            {episodes[selectedServerIndex]?.server_data.map((ep) => {
-              // Check if episode is in history to display badge or active color
-              const isWatched = mounted && history.some(h => h.slug === movie.slug && h.episodeSlug === ep.slug);
+        {/* 3. Episode Selector Section */}
+        {episodes.length > 0 ? (
+          <div className="space-y-5 bg-white/3 border border-white/5 p-6 rounded-2xl backdrop-blur-sm shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
+                Chọn Tập Phim
+              </h3>
               
-              return (
-                <Link
-                  key={ep.slug}
-                  href={`/xem-phim/${movie.slug}/${ep.slug}`}
-                  className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${
-                    isWatched
-                      ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
-                      : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
-                  }`}
-                  title={ep.filename}
-                >
-                  {ep.name}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="p-8 text-center text-sm text-slate-400 bg-white/3 border border-white/5 rounded-2xl backdrop-blur-sm">
-          Danh sách tập phim đang được cập nhật thêm. Vui lòng quay lại sau!
-        </div>
-      )}
+              {/* Server Tabs */}
+              {episodes.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
+                  {episodes.map((server, idx) => (
+                    <button
+                      key={server.server_name}
+                      onClick={() => setSelectedServerIndex(idx)}
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border ${
+                        selectedServerIndex === idx
+                          ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
+                          : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+                      }`}
+                    >
+                      {server.server_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
+            {/* Episodes List Grid */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
+              {episodes[selectedServerIndex]?.server_data.map((ep) => {
+                // Check if episode is in history to display badge or active color
+                const isWatched = mounted && history.some(h => h.slug === movie.slug && h.episodeSlug === ep.slug);
+                
+                return (
+                  <Link
+                    key={ep.slug}
+                    href={`/xem-phim/${movie.slug}/${ep.slug}`}
+                    className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${
+                      isWatched
+                        ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
+                        : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
+                    }`}
+                    title={ep.filename}
+                  >
+                    {ep.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center text-sm text-slate-400 bg-white/3 border border-white/5 rounded-2xl backdrop-blur-sm">
+            Danh sách tập phim đang được cập nhật thêm. Vui lòng quay lại sau!
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  if (mode === 'buttons-only') {
+    return renderButtons();
+  }
+
+  if (mode === 'content-only') {
+    return renderContent();
+  }
+
+  return (
+    <div className="space-y-8">
+      {renderButtons()}
+      {renderContent()}
     </div>
   );
 };
