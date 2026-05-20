@@ -513,15 +513,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 </div>
               </div>
 
-              {/* Large Play Icon in the Center (appears when paused) */}
-              {!isPlaying && (
-                <button
-                  onClick={togglePlay}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50"
-                >
-                  <Play className="w-8 h-8 text-white fill-white ml-1.5" />
-                </button>
-              )}
+              {/* Large Play/Pause Icon in the Center */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50 active:scale-95 duration-200"
+                title={isPlaying ? "Tạm dừng" : "Phát video"}
+              >
+                {isPlaying ? (
+                  <Pause className="w-7 h-7 text-white fill-white" />
+                ) : (
+                  <Play className="w-7 h-7 text-white fill-white ml-1" />
+                )}
+              </button>
 
               {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
               <div className={`space-y-3 w-full controls-prevent-click transition-all duration-300 ${
