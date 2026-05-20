@@ -1,5 +1,6 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Star, Clock, Globe, ShieldAlert, Film, User, Tag, Calendar } from 'lucide-react';
 import { getMovieDetail, getMoviesByType, getImageUrl } from '@/services/api';
 import { MovieDetailClient } from '@/components/MovieDetailClient';
@@ -53,7 +54,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
       {/* 1. Cinematic Backdrop Background Banner */}
       <div className="absolute top-0 inset-x-0 h-[65vh] z-0 overflow-hidden">
         <MoviePoster
-          src={getImageUrl(movie.poster_url || movie.thumb_url)}
+          src={getImageUrl(movie.thumb_url || movie.poster_url)}
           alt={movie.name}
           className="w-full h-full object-cover filter blur-[80px] brightness-[0.22] scale-110"
         />
@@ -132,9 +133,19 @@ export default async function MovieDetailPage({ params }: PageProps) {
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-md group-hover:scale-105 transition-transform duration-300">
                     <Globe className="w-5.5 h-5.5" />
                   </div>
-                  <div>
-                    <span className="block text-[11px] text-slate-400 font-bold uppercase tracking-wide">Quốc Gia</span>
-                    <span className="font-extrabold text-white text-base truncate max-w-[150px] inline-block">{movie.country.map((c) => c.name).join(', ')}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-[11px] text-slate-400 font-bold uppercase tracking-wide mb-1">Quốc Gia</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {movie.country.map((c) => (
+                        <Link
+                          key={c.slug}
+                          href={`/quoc-gia/${c.slug}`}
+                          className="px-2 py-0.5 text-xs font-bold bg-white/5 hover:bg-brand-cyan/10 border border-white/10 hover:border-brand-cyan/30 text-slate-300 hover:text-white rounded-lg transition-all duration-300 shadow-sm"
+                        >
+                          {c.name}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -168,11 +179,19 @@ export default async function MovieDetailPage({ params }: PageProps) {
                   <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shadow-md group-hover:scale-105 transition-transform duration-300">
                     <Tag className="w-5.5 h-5.5" />
                   </div>
-                  <div>
-                    <span className="block text-[11px] text-slate-400 font-bold uppercase tracking-wide">Thể Loại</span>
-                    <span className="font-extrabold text-white text-base truncate max-w-[150px] inline-block">
-                      {movie.category.map((cat) => cat.name).join(', ')}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-[11px] text-slate-400 font-bold uppercase tracking-wide mb-1">Thể Loại</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {movie.category.map((cat) => (
+                        <Link
+                          key={cat.slug}
+                          href={`/the-loai/${cat.slug}`}
+                          className="px-2 py-0.5 text-xs font-bold bg-white/5 hover:bg-brand-rose/10 border border-white/10 hover:border-brand-rose/30 text-slate-300 hover:text-white rounded-lg transition-all duration-300 shadow-sm"
+                        >
+                          {cat.name}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

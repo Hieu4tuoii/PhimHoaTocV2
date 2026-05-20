@@ -25,6 +25,8 @@ export default function RootLayout({
     <html lang="vi" className={`${outfit.variable} h-full antialiased`}>
       <head>
         <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#e50914" />
       </head>
       <body className="min-h-full flex flex-col bg-navy-dark text-slate-100 font-sans">
         <AppProvider>

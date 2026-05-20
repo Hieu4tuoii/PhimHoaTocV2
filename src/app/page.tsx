@@ -23,11 +23,11 @@ export default async function HomePage() {
     <div className="w-full min-h-screen pb-16 space-y-12">
       {/* 1. HERO BANNER SECTION */}
       {heroMovie && (
-        <section className="relative w-full h-[65vh] sm:h-[80vh] flex items-end overflow-hidden">
+        <section className="relative w-full min-h-[75vh] sm:min-h-[85vh] flex items-end overflow-hidden pt-24 sm:pt-28">
           {/* Blur background backdrop */}
           <div className="absolute inset-0 z-0">
             <img
-              src={getImageUrl(heroMovie.poster_url || heroMovie.thumb_url)}
+              src={getImageUrl(heroMovie.thumb_url || heroMovie.poster_url)}
               alt={heroMovie.name}
               className="w-full h-full object-cover scale-105 filter brightness-50 contrast-105"
             />

@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Search, Heart, History, Menu, X, Play, Film } from 'lucide-react';
+import { Search, Heart, History, Menu, X, Play, Film, Download } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { searchMovies, getImageUrl } from '@/services/api';
 import { MovieShort } from '@/types';
 
 export const Header: React.FC = () => {
-  const { watchlist } = useApp();
+  const { watchlist, isInstallable, isStandalone, installApp } = useApp();
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -85,6 +85,7 @@ export const Header: React.FC = () => {
     { name: 'Phim Lẻ', href: '/danh-sach/phim-le' },
     { name: 'Hoạt Hình', href: '/danh-sach/hoat-hinh' },
     { name: 'TV Shows', href: '/danh-sach/tv-shows' },
+    { name: 'Khám Phá', href: '/kham-pha' },
   ];
 
   return (
@@ -165,7 +166,7 @@ export const Header: React.FC = () => {
                       >
                         <div className="w-10 h-14 bg-slate-900 rounded-md overflow-hidden flex-shrink-0">
                           <img
-                            src={getImageUrl(movie.thumb_url || movie.poster_url)}
+                            src={getImageUrl(movie.poster_url || movie.thumb_url)}
                             alt={movie.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -209,6 +210,18 @@ export const Header: React.FC = () => {
 
           {/* Quick Actions (Watchlist, History) & Mobile Menu Toggle */}
           <div className="flex items-center space-x-3 flex-shrink-0">
+            {/* Install App Button */}
+            {mounted && !isStandalone && (
+              <button
+                onClick={installApp}
+                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5"
+                title="Tải ứng dụng Web-App"
+              >
+                <Download className="w-4 h-4" />
+                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-200">Tải App</span>
+              </button>
+            )}
+
             {/* Watchlist Button */}
             <Link
               href="/watchlist"
@@ -280,6 +293,20 @@ export const Header: React.FC = () => {
               );
             })}
           </nav>
+
+          {/* Mobile Install App Button */}
+          {mounted && !isStandalone && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                installApp();
+              }}
+              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-brand hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer transform active:scale-98 transition-all"
+            >
+              <Download className="w-5 h-5 animate-bounce" />
+              Tải ứng dụng PhimHoaToc
+            </button>
+          )}
         </div>
       )}
     </header>

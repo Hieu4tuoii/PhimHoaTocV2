@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, Volume2, Maximize, PlayCircle } from 'lucide-react';
+import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, Maximize, PlayCircle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { MovieDetail, MovieServer, EpisodeData } from '@/types';
 import Hls from 'hls.js';
@@ -38,7 +38,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
-  const currentEpIndex = currentServerEpisodes.findIndex((ep) => ep.slug === currentEpisode.slug);
+  
+  // Find the episode matching the slug of currentEpisode dynamically
+  const activeEpisode = currentServerEpisodes.find((ep) => ep.slug === currentEpisode.slug) || currentEpisode;
+  
+  const currentEpIndex = currentServerEpisodes.findIndex((ep) => ep.slug === activeEpisode.slug);
   
   const prevEp = currentEpIndex > 0 ? currentServerEpisodes[currentEpIndex - 1] : null;
   const nextEp = currentEpIndex < currentServerEpisodes.length - 1 ? currentServerEpisodes[currentEpIndex + 1] : null;
@@ -46,12 +50,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // 1. Sync server list index on mount
   useEffect(() => {
     // If HLS link is empty, fall back to embed iframe immediately
-    if (!currentEpisode.link_m3u8) {
+    if (!activeEpisode.link_m3u8) {
       setPlayMode('embed');
     } else {
       setPlayMode('hls');
     }
-  }, [currentEpisode]);
+  }, [activeEpisode]);
 
   // 2. Cinema backdrop side-effect
   useEffect(() => {
@@ -79,10 +83,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // 3. Initialize HLS Player on m3u8 link change
   useEffect(() => {
-    if (playMode !== 'hls' || !videoRef.current || !currentEpisode.link_m3u8) return;
+    if (playMode !== 'hls' || !videoRef.current || !activeEpisode.link_m3u8) return;
 
     const video = videoRef.current;
-    const hlsUrl = currentEpisode.link_m3u8;
+    const hlsUrl = activeEpisode.link_m3u8;
 
     // Clean up existing Hls instance
     if (hlsRef.current) {
@@ -139,11 +143,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         hlsRef.current = null;
       }
     };
-  }, [currentEpisode.link_m3u8, playMode]);
+  }, [activeEpisode.link_m3u8, playMode]);
 
   // Check watch progress of this episode to offer resume
   const checkAndShowResume = () => {
-    const progress = getWatchProgress(movie.slug, currentEpisode.slug);
+    const progress = getWatchProgress(movie.slug, activeEpisode.slug);
     if (progress > 10) { // Only resume if watched more than 10 seconds
       setSavedTime(progress);
       setShowResumeToast(true);
@@ -188,8 +192,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             movie.slug,
             movie.name,
             movie.thumb_url || movie.poster_url,
-            currentEpisode.slug,
-            currentEpisode.name,
+            activeEpisode.slug,
+            activeEpisode.name,
             video.currentTime,
             video.duration
           );
@@ -227,9 +231,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       clearInterval(saveInterval);
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
     };
-  }, [currentEpisode, playMode, nextEp]);
+  }, [activeEpisode, playMode, nextEp]);
 
   // Custom Player Actions
+  const handleSkip = (seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    let newTime = video.currentTime + seconds;
+    if (newTime < 0) newTime = 0;
+    if (newTime > duration) newTime = duration;
+    video.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -309,7 +323,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       }`}>
         
         {/* Play HLS m3u8 Mode */}
-        {playMode === 'hls' && currentEpisode.link_m3u8 && (
+        {playMode === 'hls' && activeEpisode.link_m3u8 && (
           <div className="relative w-full h-full group/player cursor-none" style={{ cursor: showControls ? 'default' : 'none' }}>
             <video
               ref={videoRef}
@@ -326,7 +340,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               <div className="flex justify-between items-start">
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-base text-white">{movie.name}</h3>
-                  <p className="text-xs text-slate-400 font-semibold">{currentEpisode.name}</p>
+                  <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -344,9 +358,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               {!isPlaying && (
                 <button
                   onClick={togglePlay}
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50"
                 >
-                  <PlayCircle className="w-10 h-10 fill-white" />
+                  <Play className="w-8 h-8 text-white fill-white ml-1.5" />
                 </button>
               )}
 
@@ -373,7 +387,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
                 {/* Controls action buttons row */}
                 <div className="flex justify-between items-center text-white">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-5">
+                    {/* Backward 10s Button */}
+                    <button
+                      onClick={() => handleSkip(-10)}
+                      className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                      title="Lùi 10 giây"
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                    </button>
+
                     {/* Play/Pause Button */}
                     <button onClick={togglePlay} className="hover:text-brand-rose cursor-pointer transition-colors" title={isPlaying ? "Tạm dừng" : "Phát video"}>
                       {isPlaying ? (
@@ -383,8 +406,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                       )}
                     </button>
 
+                    {/* Forward 10s Button */}
+                    <button
+                      onClick={() => handleSkip(10)}
+                      className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                      title="Tua 10 giây"
+                    >
+                      <RotateCw className="w-5 h-5" />
+                    </button>
+
                     {/* Volume Bar slider */}
-                    <div className="flex items-center gap-2 group/volume">
+                    <div className="flex items-center gap-2 group/volume ml-2">
                       <Volume2 className="w-5 h-5 text-slate-300" />
                       <input
                         type="range"
@@ -399,19 +431,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   </div>
 
                   <div className="flex items-center gap-4">
-                    {/* Cinema Mode switch */}
-                    <button
-                      onClick={() => toggleCinemaMode()}
-                      className={`p-1.5 rounded-lg border transition-all duration-300 cursor-pointer ${
-                        isCinemaMode
-                          ? 'border-brand-violet bg-brand-violet/25 text-brand-rose shadow-neon'
-                          : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800 text-slate-300'
-                      }`}
-                      title={isCinemaMode ? "Tắt chế độ rạp chiếu phim" : "Bật chế độ rạp chiếu phim"}
-                    >
-                      <Monitor className="w-4.5 h-4.5" />
-                    </button>
-                    
                     {/* Fullscreen Button */}
                     <button onClick={toggleFullscreen} className="hover:text-brand-cyan cursor-pointer">
                       <Maximize className="w-5 h-5" />
@@ -425,10 +444,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         )}
 
         {/* Play Embed Iframe Mode */}
-        {(playMode === 'embed' || !currentEpisode.link_m3u8) && (
+        {(playMode === 'embed' || !activeEpisode.link_m3u8) && (
           <div className="relative w-full h-full">
             <iframe
-              src={currentEpisode.link_embed}
+              src={activeEpisode.link_embed}
               className="w-full h-full border-0"
               allowFullScreen
               // Sandbox integration to block aggressive popup ads
@@ -436,7 +455,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             />
             
             {/* Top Switcher in Iframe mode */}
-            {currentEpisode.link_m3u8 && (
+            {activeEpisode.link_m3u8 && (
               <div className="absolute top-4 right-4 z-20">
                 <button
                   onClick={() => setPlayMode('hls')}
@@ -484,7 +503,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         <div className="text-center sm:text-left space-y-1">
           <h1 className="text-xl sm:text-2xl font-black text-white">{movie.name}</h1>
           <p className="text-xs sm:text-sm text-slate-400 font-medium">
-            Đang phát: <span className="text-brand-rose font-bold">{currentEpisode.name}</span> | Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}
+            Đang phát: <span className="text-brand-rose font-bold">{activeEpisode.name}</span> | Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}
           </p>
         </div>
 
@@ -562,7 +581,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         {/* Quick select grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-56 overflow-y-auto pr-1">
           {currentServerEpisodes.map((ep) => {
-            const isCurrent = ep.slug === currentEpisode.slug;
+            const isCurrent = ep.slug === activeEpisode.slug;
             
             return (
               <Link

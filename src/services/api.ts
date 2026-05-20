@@ -3,13 +3,16 @@ import { MovieListResponse, MovieDetailResponse, APIV1ListResponse, Genre, Count
 const BASE_URL = 'https://phimapi.com';
 const IMAGE_BASE_URL = 'https://phimimg.com';
 
-// Helper function to build full image URL
+// Helper function to build full image URL with WebP conversion API
 export const getImageUrl = (path: string | undefined): string => {
   if (!path) return '/placeholder-movie.jpg'; // fallback image
+  let originalUrl = '';
   if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
+    originalUrl = path;
+  } else {
+    originalUrl = `${IMAGE_BASE_URL}/${path.startsWith('/') ? path.slice(1) : path}`;
   }
-  return `${IMAGE_BASE_URL}/${path.startsWith('/') ? path.slice(1) : path}`;
+  return `https://phimapi.com/image.php?url=${encodeURIComponent(originalUrl)}`;
 };
 
 // 1. Get new updated movies
@@ -149,3 +152,66 @@ export async function getCountries(): Promise<Country[]> {
     return [];
   }
 }
+
+// 7. Get movies by genre
+export async function getMoviesByGenre(
+  genreSlug: string,
+  page: number = 1,
+  limit: number = 24
+): Promise<MovieListResponse> {
+  try {
+    const res = await fetch(`${BASE_URL}/v1/api/the-loai/${genreSlug}?page=${page}&limit=${limit}`, {
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) {
+      console.error(`Failed to fetch movies for genre ${genreSlug}: status`, res.status);
+      return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+    }
+    const data: APIV1ListResponse = await res.json();
+
+    if (data.status) {
+      return {
+        status: true,
+        items: data.data.items,
+        pagination: data.data.params.pagination,
+      };
+    }
+    console.error(`API returned unsuccessful status for genre ${genreSlug}`);
+    return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+  } catch (error) {
+    console.error(`Error fetching movies for genre ${genreSlug}:`, error);
+    return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+  }
+}
+
+// 8. Get movies by country
+export async function getMoviesByCountry(
+  countrySlug: string,
+  page: number = 1,
+  limit: number = 24
+): Promise<MovieListResponse> {
+  try {
+    const res = await fetch(`${BASE_URL}/v1/api/quoc-gia/${countrySlug}?page=${page}&limit=${limit}`, {
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) {
+      console.error(`Failed to fetch movies for country ${countrySlug}: status`, res.status);
+      return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+    }
+    const data: APIV1ListResponse = await res.json();
+
+    if (data.status) {
+      return {
+        status: true,
+        items: data.data.items,
+        pagination: data.data.params.pagination,
+      };
+    }
+    console.error(`API returned unsuccessful status for country ${countrySlug}`);
+    return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+  } catch (error) {
+    console.error(`Error fetching movies for country ${countrySlug}:`, error);
+    return { status: false, items: [], pagination: { totalItems: 0, totalItemsPerPage: limit, currentPage: page, totalPages: 1 } };
+  }
+}
+
