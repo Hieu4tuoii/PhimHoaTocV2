@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #141414;
+  --color-foreground: #FFFFFF;
+  
+  --color-brand-violet: #E50914; /* Netflix Red */
+  --color-brand-rose: #C11119;   /* Netflix Red Hover / Dark Red */
+  --color-brand-cyan: #FFFFFF;   /* Netflix White / Light Gray */
+  
+  --color-navy-dark: #141414;
+  --color-navy-light: #000000;
+  --color-navy-panel: #1F1F1F;
+
+  /* Ghi đè hệ màu slate sang tông Zinc xám/đen của Netflix để triệt tiêu hoàn toàn sắc xanh navy */
+  --color-slate-50: #f4f4f5;
+  --color-slate-100: #e4e4e7;
+  --color-slate-200: #d4d4d8;
+  --color-slate-300: #a1a1aa;
+  --color-slate-400: #71717a;
+  --color-slate-500: #52525b;
+  --color-slate-600: #3f3f46;
+  --color-slate-700: #27272a;
+  --color-slate-800: #18181b;
+  --color-slate-900: #141414;
+  --color-slate-950: #000000;
+}
+
+:root {
+  --background: #141414;
+  --foreground: #FFFFFF;
+}
+
+body {
+  background-color: #141414;
+  color: #FFFFFF;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #141414;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F1F1F;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E50914;
+}
+
+/* Custom Utility Classes */
+.glass-panel {
+  background: rgba(20, 20, 20, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #E50914 0%, #C11119 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gradient-brand {
+  background: linear-gradient(135deg, #E50914 0%, #C11119 100%);
+}
+
+.border-gradient-brand {
+  border-image: linear-gradient(135deg, #E50914 0%, #C11119 100%) 1;
+}
+
+.shadow-neon {
+  box-shadow: 0 0 15px rgba(229, 9, 20, 0.25);
+}
+
+.shadow-neon-hover:hover {
+  box-shadow: 0 0 25px rgba(229, 9, 20, 0.45);
+}
+
+/* Cinema Mode overlay animation */
+.cinema-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.cinema-backdrop.active {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+/* Slide animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Snap Scroll for horizontal sliders */
+.snap-inline {
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.snap-inline > * {
+  scroll-snap-align: start;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
