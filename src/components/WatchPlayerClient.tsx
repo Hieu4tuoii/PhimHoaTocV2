@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, Maximize, PlayCircle } from 'lucide-react';
@@ -25,16 +25,22 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   
-  // Custom Controls States
+  // Performance: Use refs for high-frequency values to avoid re-renders
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const progressBarRef = useRef<HTMLInputElement>(null);
+  const currentTimeDisplayRef = useRef<HTMLSpanElement>(null);
+  const durationDisplayRef = useRef<HTMLSpanElement>(null);
+  
+  // Custom Controls States (only for low-frequency UI updates)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [showResumeToast, setShowResumeToast] = useState(false);
   const [savedTime, setSavedTime] = useState(0);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mouseMoveThrottleRef = useRef(false);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
@@ -46,6 +52,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   
   const prevEp = currentEpIndex > 0 ? currentServerEpisodes[currentEpIndex - 1] : null;
   const nextEp = currentEpIndex < currentServerEpisodes.length - 1 ? currentServerEpisodes[currentEpIndex + 1] : null;
+
+  // Performance: Prefetch next episode route for instant navigation
+  useEffect(() => {
+    if (nextEp) {
+      router.prefetch(`/xem-phim/${movie.slug}/${nextEp.slug}`);
+    }
+  }, [nextEp, movie.slug, router]);
 
   // 1. Sync server list index on mount
   useEffect(() => {
@@ -81,6 +94,36 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, []);
 
+  // Performance: formatTime as a stable helper (no dependency on state)
+  const formatTime = useCallback((timeInSeconds: number) => {
+    const hrs = Math.floor(timeInSeconds / 3600);
+    const mins = Math.floor((timeInSeconds % 3600) / 60);
+    const secs = Math.floor(timeInSeconds % 60);
+
+    let result = '';
+    if (hrs > 0) result += `${hrs}:`;
+    result += `${mins < 10 ? '0' : ''}${mins}:`;
+    result += `${secs < 10 ? '0' : ''}${secs}`;
+    return result;
+  }, []);
+
+  // Performance: Direct DOM update for progress bar — avoids setState 4x/sec
+  const updateProgressDOM = useCallback(() => {
+    const time = currentTimeRef.current;
+    const dur = durationRef.current;
+    
+    if (progressBarRef.current) {
+      progressBarRef.current.value = String(time);
+      progressBarRef.current.max = String(dur || 0);
+    }
+    if (currentTimeDisplayRef.current) {
+      currentTimeDisplayRef.current.textContent = formatTime(time);
+    }
+    if (durationDisplayRef.current) {
+      durationDisplayRef.current.textContent = formatTime(dur);
+    }
+  }, [formatTime]);
+
   // 3. Initialize HLS Player on m3u8 link change
   useEffect(() => {
     if (playMode !== 'hls' || !videoRef.current || !activeEpisode.link_m3u8) return;
@@ -96,8 +139,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        maxMaxBufferLength: 30, // limit memory
-        enableWorker: true
+        // Performance: Optimized HLS config for smoother streaming
+        maxMaxBufferLength: 60,           // Increase buffer from 30s → 60s for unstable networks
+        maxBufferSize: 60 * 1000 * 1000,  // 60MB buffer size
+        maxBufferHole: 0.5,               // Allow small buffer holes
+        enableWorker: true,
+        startLevel: -1,                   // Auto-detect best quality level
+        capLevelToPlayerSize: true,       // Don't load resolution > player size
       });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
@@ -146,7 +194,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, [activeEpisode.link_m3u8, playMode]);
 
   // Check watch progress of this episode to offer resume
-  const checkAndShowResume = () => {
+  const checkAndShowResume = useCallback(() => {
     const progress = getWatchProgress(movie.slug, activeEpisode.slug);
     if (progress > 10) { // Only resume if watched more than 10 seconds
       setSavedTime(progress);
@@ -155,16 +203,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
       resumeTimeoutRef.current = setTimeout(() => setShowResumeToast(false), 10000);
     }
-  };
+  }, [getWatchProgress, movie.slug, activeEpisode.slug]);
 
-  const handleResumePlay = () => {
+  const handleResumePlay = useCallback(() => {
     if (videoRef.current && savedTime > 0) {
       videoRef.current.currentTime = savedTime;
       videoRef.current.play();
       setIsPlaying(true);
     }
     setShowResumeToast(false);
-  };
+  }, [savedTime]);
 
   // 4. Progress Auto-Save Timer & Video events hook
   useEffect(() => {
@@ -176,12 +224,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     
+    // Performance: Update ref + DOM directly instead of setState
     const handleTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
+      currentTimeRef.current = video.currentTime;
+      updateProgressDOM();
     };
 
     const handleDurationChange = () => {
-      setDuration(video.duration);
+      durationRef.current = video.duration;
+      updateProgressDOM();
     };
 
     // Auto save progress every 5 seconds when playing
@@ -231,47 +282,49 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       clearInterval(saveInterval);
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
     };
-  }, [activeEpisode, playMode, nextEp]);
+  }, [activeEpisode, playMode, nextEp, movie.slug, movie.name, movie.thumb_url, movie.poster_url, activeEpisode.slug, activeEpisode.name, saveWatchProgress, updateProgressDOM, router]);
 
   // Custom Player Actions
-  const handleSkip = (seconds: number) => {
+  const handleSkip = useCallback((seconds: number) => {
     const video = videoRef.current;
     if (!video) return;
     let newTime = video.currentTime + seconds;
     if (newTime < 0) newTime = 0;
-    if (newTime > duration) newTime = duration;
+    if (newTime > durationRef.current) newTime = durationRef.current;
     video.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
+    currentTimeRef.current = newTime;
+    updateProgressDOM();
+  }, [updateProgressDOM]);
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isPlaying) {
-      video.pause();
-    } else {
+    if (video.paused) {
       video.play().catch(err => console.error("Error playing video:", err));
+    } else {
+      video.pause();
     }
-  };
+  }, []);
 
-  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSeekChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;
     if (!video) return;
     const seekTime = parseFloat(e.target.value);
     video.currentTime = seekTime;
-    setCurrentTime(seekTime);
-  };
+    currentTimeRef.current = seekTime;
+    updateProgressDOM();
+  }, [updateProgressDOM]);
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;
     if (!video) return;
     const val = parseFloat(e.target.value);
     video.volume = val;
     setVolume(val);
-  };
+  }, []);
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = useCallback(() => {
     const playerContainer = document.querySelector('.custom-player-container');
     if (!playerContainer) return;
 
@@ -280,22 +333,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     } else {
       document.exitFullscreen();
     }
-  };
+  }, []);
 
-  const formatTime = (timeInSeconds: number) => {
-    const hrs = Math.floor(timeInSeconds / 3600);
-    const mins = Math.floor((timeInSeconds % 3600) / 60);
-    const secs = Math.floor(timeInSeconds % 60);
+  // Performance: Throttled mouse move handler (max 1 call per 300ms)
+  const handleMouseMove = useCallback(() => {
+    if (mouseMoveThrottleRef.current) return;
+    mouseMoveThrottleRef.current = true;
 
-    let result = '';
-    if (hrs > 0) result += `${hrs}:`;
-    result += `${mins < 10 ? '0' : ''}${mins}:`;
-    result += `${secs < 10 ? '0' : ''}${secs}`;
-    return result;
-  };
-
-  // Micro-interaction: hide cursor & control panel during play
-  const handleMouseMove = () => {
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     
@@ -304,7 +348,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         setShowControls(false);
       }, 3000); // hide control bar after 3 seconds of inactivity
     }
-  };
+
+    setTimeout(() => {
+      mouseMoveThrottleRef.current = false;
+    }, 300);
+  }, [isPlaying]);
 
   return (
     <div className="w-full space-y-8 animate-slide-up" onMouseMove={handleMouseMove}>
@@ -369,19 +417,20 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 
                 {/* Progress bar timeline */}
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-300 tabular-nums">
-                    {formatTime(currentTime)}
+                  <span ref={currentTimeDisplayRef} className="text-xs text-slate-300 tabular-nums">
+                    0:00
                   </span>
                   <input
+                    ref={progressBarRef}
                     type="range"
                     min="0"
-                    max={duration || 0}
-                    value={currentTime}
+                    max="0"
+                    defaultValue="0"
                     onChange={handleSeekChange}
                     className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-rose focus:outline-none"
                   />
-                  <span className="text-xs text-slate-300 tabular-nums">
-                    {formatTime(duration)}
+                  <span ref={durationDisplayRef} className="text-xs text-slate-300 tabular-nums">
+                    0:00
                   </span>
                 </div>
 

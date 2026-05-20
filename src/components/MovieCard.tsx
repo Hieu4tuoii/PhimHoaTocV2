@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Play } from 'lucide-react';
 import { MovieShort } from '@/types';
@@ -11,17 +11,19 @@ interface MovieCardProps {
 }
 
 export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
-  const [imgSrc, setImgSrc] = useState<string>(getImageUrl(movie.poster_url || movie.thumb_url));
-  const [isHovered, setIsHovered] = useState(false);
+  const [imgSrc, setImgSrc] = useState<string>(() => getImageUrl(movie.poster_url || movie.thumb_url));
 
-  const handleImageError = () => {
+  // Performance: useCallback to stabilize image error handler reference
+  const handleImageError = useCallback(() => {
     // If poster_url fails, try thumb_url. If both fail, use default placeholder.
-    if (imgSrc !== getImageUrl(movie.thumb_url) && movie.thumb_url) {
-      setImgSrc(getImageUrl(movie.thumb_url));
-    } else {
-      setImgSrc('/placeholder-movie.jpg'); // Ensure you have a placeholder or we can use an external placeholder
-    }
-  };
+    const thumbUrl = getImageUrl(movie.thumb_url);
+    setImgSrc((prev) => {
+      if (prev !== thumbUrl && movie.thumb_url) {
+        return thumbUrl;
+      }
+      return '/placeholder-movie.jpg';
+    });
+  }, [movie.thumb_url]);
 
   // Safe formatting for episode/quality badge
   const badgeText = movie.episode_current && movie.episode_current.toLowerCase() !== 'full'
@@ -34,8 +36,6 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
     <Link
       href={`/phim/${movie.slug}`}
       className="group block relative flex flex-col w-full focus:outline-none focus:ring-2 focus:ring-brand-violet rounded-2xl overflow-hidden transition-all duration-300"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Poster Image Container */}
       <div className="relative aspect-[2/3] w-full rounded-2xl bg-slate-900 overflow-hidden shadow-lg border border-slate-800/30 transition-all duration-500 group-hover:scale-105 group-hover:border-brand-violet/50 shadow-neon-hover">

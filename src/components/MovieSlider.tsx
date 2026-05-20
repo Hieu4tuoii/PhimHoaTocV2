@@ -17,6 +17,9 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
   const [showLeftBtn, setShowLeftBtn] = useState(false);
   const [showRightBtn, setShowRightBtn] = useState(true);
 
+  // Performance: Throttled scroll check using requestAnimationFrame
+  const scrollRafRef = useRef<number | null>(null);
+
   const checkScroll = () => {
     if (sliderRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
@@ -25,21 +28,30 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
     }
   };
 
+  const throttledCheckScroll = () => {
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      checkScroll();
+      scrollRafRef.current = null;
+    });
+  };
+
   useEffect(() => {
     const slider = sliderRef.current;
     if (slider) {
-      slider.addEventListener('scroll', checkScroll);
+      slider.addEventListener('scroll', throttledCheckScroll, { passive: true });
       // Run once on mount
       checkScroll();
       
       // Also check on resize
-      window.addEventListener('resize', checkScroll);
+      window.addEventListener('resize', throttledCheckScroll);
     }
     return () => {
       if (slider) {
-        slider.removeEventListener('scroll', checkScroll);
+        slider.removeEventListener('scroll', throttledCheckScroll);
       }
-      window.removeEventListener('resize', checkScroll);
+      window.removeEventListener('resize', throttledCheckScroll);
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
     };
   }, [movies]);
 

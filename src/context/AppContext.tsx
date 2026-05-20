@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Play, X, Share, PlusSquare, Smartphone } from 'lucide-react';
 import { MovieShort } from '@/types';
 
@@ -57,6 +57,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isStandalone, setIsStandalone] = useState<boolean>(false);
   const [showInstallModal, setShowInstallModal] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'ios' | 'android_desktop'>('ios');
+
+  // Performance: Ref to track history for high-frequency reads (getWatchProgress)
+  const historyRef = useRef<WatchHistoryItem[]>([]);
+  historyRef.current = history;
+
+  // Performance: Debounce timer refs for localStorage writes
+  const watchlistWriteTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const historyWriteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -123,7 +131,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const installApp = async () => {
+  const installApp = useCallback(async () => {
     if (deferredPrompt) {
       try {
         deferredPrompt.prompt();
@@ -140,7 +148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Không có prompt tự động (iOS Safari hoặc chưa nhận diện kịp) -> Hiện modal hướng dẫn cài đặt thủ công
       setShowInstallModal(true);
     }
-  };
+  }, [deferredPrompt]);
 
   // Load data from LocalStorage on mount
   useEffect(() => {
@@ -152,7 +160,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const storedHistory = localStorage.getItem('phimhoatoc_history');
       if (storedHistory) {
-        setHistory(JSON.parse(storedHistory));
+        const parsed = JSON.parse(storedHistory);
+        setHistory(parsed);
+        historyRef.current = parsed;
       }
     } catch (e) {
       console.error('Error loading LocalStorage data:', e);
@@ -160,44 +170,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoaded(true);
   }, []);
 
-  // Save watchlist to LocalStorage when changed
+  // Performance: Debounced localStorage write for watchlist (500ms delay)
   useEffect(() => {
     if (!isLoaded) return;
-    try {
-      localStorage.setItem('phimhoatoc_watchlist', JSON.stringify(watchlist));
-    } catch (e) {
-      console.error('Error writing watchlist to LocalStorage:', e);
-    }
+    if (watchlistWriteTimerRef.current) clearTimeout(watchlistWriteTimerRef.current);
+    watchlistWriteTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem('phimhoatoc_watchlist', JSON.stringify(watchlist));
+      } catch (e) {
+        console.error('Error writing watchlist to LocalStorage:', e);
+      }
+    }, 500);
   }, [watchlist, isLoaded]);
 
-  // Save history to LocalStorage when changed
+  // Performance: Debounced localStorage write for history (2s delay — high-frequency updates)
   useEffect(() => {
     if (!isLoaded) return;
-    try {
-      localStorage.setItem('phimhoatoc_history', JSON.stringify(history));
-    } catch (e) {
-      console.error('Error writing history to LocalStorage:', e);
-    }
+    if (historyWriteTimerRef.current) clearTimeout(historyWriteTimerRef.current);
+    historyWriteTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem('phimhoatoc_history', JSON.stringify(history));
+      } catch (e) {
+        console.error('Error writing history to LocalStorage:', e);
+      }
+    }, 2000);
   }, [history, isLoaded]);
 
-  // Watchlist methods
-  const addToWatchlist = (movie: MovieShort) => {
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (watchlistWriteTimerRef.current) clearTimeout(watchlistWriteTimerRef.current);
+      if (historyWriteTimerRef.current) clearTimeout(historyWriteTimerRef.current);
+    };
+  }, []);
+
+  // Watchlist methods — wrapped with useCallback
+  const addToWatchlist = useCallback((movie: MovieShort) => {
     setWatchlist((prev) => {
       if (prev.some((m) => m.slug === movie.slug)) return prev;
       return [movie, ...prev];
     });
-  };
+  }, []);
 
-  const removeFromWatchlist = (slug: string) => {
+  const removeFromWatchlist = useCallback((slug: string) => {
     setWatchlist((prev) => prev.filter((m) => m.slug !== slug));
-  };
+  }, []);
 
-  const isInWatchlist = (slug: string) => {
+  const isInWatchlist = useCallback((slug: string) => {
     return watchlist.some((m) => m.slug === slug);
-  };
+  }, [watchlist]);
 
-  // Watch history methods
-  const saveWatchProgress = (
+  // Watch history methods — wrapped with useCallback
+  const saveWatchProgress = useCallback((
     slug: string,
     movieName: string,
     movieThumb: string,
@@ -226,53 +250,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const movieFiltered = filtered.filter(item => item.slug !== slug);
       return [newItem, ...movieFiltered].slice(0, 50); // limit to 50 items
     });
-  };
+  }, []);
 
-  const getWatchProgress = (slug: string, episodeSlug: string) => {
-    const record = history.find((item) => item.slug === slug && item.episodeSlug === episodeSlug);
+  // Performance: Read from ref instead of state for high-frequency access
+  const getWatchProgress = useCallback((slug: string, episodeSlug: string) => {
+    const record = historyRef.current.find((item) => item.slug === slug && item.episodeSlug === episodeSlug);
     return record ? record.currentTime : 0;
-  };
+  }, []);
 
-  const getMovieLastWatchedEpisode = (slug: string) => {
+  const getMovieLastWatchedEpisode = useCallback((slug: string) => {
     return history.find((item) => item.slug === slug);
-  };
+  }, [history]);
 
   // Cinema Mode methods
-  const toggleCinemaMode = () => {
+  const toggleCinemaMode = useCallback(() => {
     setIsCinemaMode((prev) => !prev);
-  };
+  }, []);
 
-  const setCinemaMode = (val: boolean) => {
+  const setCinemaMode = useCallback((val: boolean) => {
     setIsCinemaMode(val);
-  };
+  }, []);
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setHistory([]);
-  };
+  }, []);
+
+  // Performance: Memoize the context value to prevent unnecessary re-renders of all consumers
+  const contextValue = useMemo<AppContextProps>(() => ({
+    watchlist,
+    history,
+    isCinemaMode,
+    addToWatchlist,
+    removeFromWatchlist,
+    isInWatchlist,
+    saveWatchProgress,
+    getWatchProgress,
+    getMovieLastWatchedEpisode,
+    toggleCinemaMode,
+    setCinemaMode,
+    clearHistory,
+    deferredPrompt,
+    isInstallable,
+    isStandalone,
+    showInstallModal,
+    setShowInstallModal,
+    installApp,
+  }), [
+    watchlist,
+    history,
+    isCinemaMode,
+    addToWatchlist,
+    removeFromWatchlist,
+    isInWatchlist,
+    saveWatchProgress,
+    getWatchProgress,
+    getMovieLastWatchedEpisode,
+    toggleCinemaMode,
+    setCinemaMode,
+    clearHistory,
+    deferredPrompt,
+    isInstallable,
+    isStandalone,
+    showInstallModal,
+    installApp,
+  ]);
 
   return (
-    <AppContext.Provider
-      value={{
-        watchlist,
-        history,
-        isCinemaMode,
-        addToWatchlist,
-        removeFromWatchlist,
-        isInWatchlist,
-        saveWatchProgress,
-        getWatchProgress,
-        getMovieLastWatchedEpisode,
-        toggleCinemaMode,
-        setCinemaMode,
-        clearHistory,
-        deferredPrompt,
-        isInstallable,
-        isStandalone,
-        showInstallModal,
-        setShowInstallModal,
-        installApp,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
 
       {/* PWA Manual Install Instructions Modal */}
