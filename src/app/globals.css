@@ -184,3 +184,45 @@ a:focus {
     touch-action: manipulation;
   }
 }
+
+/* Triệt tiêu hoàn toàn hiệu ứng dính hover (sticky hover) gây khó chịu trên thiết bị cảm ứng di động */
+@media (hover: none) {
+  /* Khôi phục hình ảnh poster phim về trạng thái tĩnh bình thường khi chạm */
+  .group:hover .group-hover\:scale-105 {
+    transform: none !important;
+  }
+  .group:hover .group-hover\:scale-102 {
+    transform: none !important;
+  }
+  .group:hover .group-hover\:brightness-90 {
+    filter: none !important;
+  }
+  
+  /* Không hiển thị play overlay bay lên cồng kềnh trên điện thoại để tránh chắn ảnh */
+  .group:hover .group-hover\:opacity-100 {
+    opacity: 0 !important;
+  }
+  .group:hover .group-hover\:translate-y-0 {
+    transform: translateY(2rem) !important;
+  }
+
+  /* Vô hiệu hóa hiệu ứng dịch chuyển lên trên khi chạm vào tập phim */
+  .hover\:-translate-y-0\.5:hover {
+    transform: none !important;
+  }
+  
+  /* Vô hiệu hóa hiệu ứng đổi màu viền đỏ của tập phim khi chạm */
+  .hover\:border-brand-rose:hover {
+    border-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  .hover\:bg-gradient-to-r:hover {
+    background-image: none !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  
+  /* Vô hiệu hóa đổi màu hover trên navbar link */
+  .hover\:text-slate-200:hover {
+    color: #a1a1aa !important; /* giữ nguyên màu xám slate-300/400 mặc định */
+  }
+}
+

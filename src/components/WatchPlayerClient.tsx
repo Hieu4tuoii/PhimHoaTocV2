@@ -476,7 +476,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       {/* 2. CINEMA PLAYER CONTAINER */}
       <div 
         ref={playerContainerRef}
-        className={`custom-player-container relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl z-40 transition-all duration-500 ${
+        className={`custom-player-container relative aspect-video w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full bg-black rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-800/80 shadow-2xl z-40 transition-all duration-500 ${
           isCinemaMode 
             ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
             : 'shadow-black/60'
@@ -503,21 +503,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               onClick={handlePlayerClick}
               onTouchEnd={handlePlayerTouchEnd}
             >
-              {/* Top controls: Movie titles */}
-              <div className="flex justify-between items-start controls-prevent-click">
+              {/* Top controls: Movie titles (Ẩn mượt mà khi chưa bấm phát) */}
+              <div className={`flex justify-between items-start controls-prevent-click transition-all duration-300 ${
+                !isPlaying ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100'
+              }`}>
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-base text-white">{movie.name}</h3>
                   <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPlayMode('embed')}
-                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-brand-cyan hover:text-white glass-panel rounded-lg cursor-pointer"
-                    title="Chuyển sang server Iframe dự phòng"
-                  >
-                    <Tv className="w-3.5 h-3.5" />
-                    Chuyển Server Iframe
-                  </button>
                 </div>
               </div>
 
@@ -531,8 +523,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 </button>
               )}
 
-              {/* Bottom controls panel */}
-              <div className="space-y-3 w-full controls-prevent-click">
+              {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
+              <div className={`space-y-3 w-full controls-prevent-click transition-all duration-300 ${
+                !isPlaying ? 'opacity-0 pointer-events-none translate-y-4' : 'opacity-100'
+              }`}>
                 
                 {/* Progress bar timeline */}
                 <div className="flex items-center gap-3">
@@ -621,19 +615,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               // Sandbox integration to block aggressive popup ads
               sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             />
-            
-            {/* Top Switcher in Iframe mode */}
-            {activeEpisode.link_m3u8 && (
-              <div className="absolute top-4 right-4 z-20">
-                <button
-                  onClick={() => setPlayMode('hls')}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gradient-brand text-white rounded-lg shadow-md cursor-pointer hover:opacity-90"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Sử dụng HLS Stream xịn
-                </button>
-              </div>
-            )}
           </div>
         )}
 
@@ -665,51 +646,83 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
       </div>
 
+      {/* Cụm chọn nguồn phát dự phòng (Play Mode) tích hợp dưới player */}
+      {activeEpisode.link_m3u8 && activeEpisode.link_embed && (
+        <div className="flex flex-wrap items-center gap-2.5 p-3.5 bg-white/2 border border-white/5 rounded-2xl">
+          <span className="text-xs font-bold text-slate-400">Nguồn phát:</span>
+          <button
+            onClick={() => setPlayMode('hls')}
+            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer border active:scale-95 active:duration-75 ${
+              playMode === 'hls'
+                ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
+                : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+            }`}
+          >
+            Server HLS (Tốc độ cao - Khuyên dùng)
+          </button>
+          <button
+            onClick={() => setPlayMode('embed')}
+            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer border active:scale-95 active:duration-75 ${
+              playMode === 'embed'
+                ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
+                : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+            }`}
+          >
+            Server Iframe (Dự phòng khi lag/lỗi)
+          </button>
+        </div>
+      )}
+
       {/* 3. UNDER PLAYER STATS & NAVIGATION ACTIONS */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4 border-b border-slate-900 pb-6">
+      <div className="flex items-center justify-between gap-4 pt-3 pb-4 border-b border-slate-900/60">
         {/* Episode description stats */}
-        <div className="text-center sm:text-left space-y-1">
-          <h1 className="text-xl sm:text-2xl font-black text-white">{movie.name}</h1>
-          <p className="text-xs sm:text-sm text-slate-400 font-medium">
-            Đang phát: <span className="text-brand-rose font-bold">{activeEpisode.name}</span> | Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base sm:text-xl font-black text-white truncate" title={movie.name}>{movie.name}</h1>
+          <p className="text-[11px] sm:text-xs text-slate-400 font-semibold truncate mt-0.5">
+            Đang phát: <span className="text-brand-rose font-bold">{activeEpisode.name}</span>
+            <span className="hidden xs:inline"> | Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}</span>
           </p>
         </div>
 
-        {/* Prev / Next navigation buttons */}
-        <div className="flex items-center gap-3">
+        {/* Prev / Next navigation buttons - Làm cực kỳ nhỏ gọn để đỡ tốn diện tích */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {prevEp ? (
             <Link
               href={`/xem-phim/${movie.slug}/${prevEp.slug}`}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800/60 hover:bg-slate-800 text-xs sm:text-sm font-bold text-slate-200 border border-slate-700/50 hover:border-slate-600 rounded-xl transition-all duration-300 cursor-pointer"
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800/60 hover:bg-slate-800 text-xs font-bold text-slate-200 border border-slate-700/50 hover:border-slate-600 rounded-xl active:scale-95 transition-all duration-300 cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Tập trước
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tập trước</span>
+              <span className="inline sm:hidden">Trước</span>
             </Link>
           ) : (
             <button
               disabled
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900/20 text-slate-600 text-xs sm:text-sm font-bold border border-slate-850 rounded-xl cursor-not-allowed"
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-900/20 text-slate-600 text-xs font-bold border border-slate-850 rounded-xl cursor-not-allowed"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Tập trước
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tập trước</span>
+              <span className="inline sm:hidden">Trước</span>
             </button>
           )}
 
           {nextEp ? (
             <Link
               href={`/xem-phim/${movie.slug}/${nextEp.slug}`}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-brand text-xs sm:text-sm font-bold text-white rounded-xl shadow-lg hover:shadow-brand-rose/25 transform hover:-translate-y-0.5 transition-all duration-300 cursor-pointer"
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-gradient-brand text-xs font-bold text-white rounded-xl shadow-lg hover:shadow-brand-rose/25 active:scale-95 transition-all duration-300 cursor-pointer"
             >
-              Tập tiếp theo
-              <ArrowRight className="w-4 h-4" />
+              <span className="hidden sm:inline">Tập tiếp theo</span>
+              <span className="inline sm:hidden">Tiếp</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           ) : (
             <button
               disabled
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900/20 text-slate-600 text-xs sm:text-sm font-bold border border-slate-850 rounded-xl cursor-not-allowed"
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-900/20 text-slate-600 text-xs font-bold border border-slate-850 rounded-xl cursor-not-allowed"
             >
-              Tập tiếp theo
-              <ArrowRight className="w-4 h-4" />
+              <span className="hidden sm:inline">Tập tiếp theo</span>
+              <span className="inline sm:hidden">Tiếp</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

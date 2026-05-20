@@ -33,9 +33,13 @@ export const BottomNav: React.FC = () => {
               key={item.name}
               href={item.href}
               className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 text-slate-400 active:scale-95 active:duration-75 transition-all outline-none ${
-                isActive ? 'text-brand-rose' : 'hover:text-slate-200'
+                isActive ? 'text-brand-violet font-black' : 'hover:text-slate-200'
               }`}
             >
+              {/* Thanh chỉ báo phát sáng nhẹ sát viền trên của tab đang active */}
+              {isActive && (
+                <span className="absolute -top-[1px] left-1/2 -translate-x-1/2 w-8 h-[2.5px] bg-gradient-brand rounded-full shadow-[0_0_10px_#E50914] animate-pulse" />
+              )}
               <div className="relative">
                 <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? 'scale-110 stroke-[2.5px]' : 'stroke-[2px]'}`} />
                 {item.badge !== undefined && item.badge > 0 && (
