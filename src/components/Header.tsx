@@ -218,105 +218,44 @@ export const Header: React.FC = () => {
 
           {/* Quick Actions (Watchlist, History) & Mobile Menu Toggle */}
           <div className="flex items-center space-x-1 sm:space-x-3 flex-shrink-0">
-            {/* Install App Button */}
+            {/* Install App Button - Nổi bật trên Mobile và PC */}
             {mounted && !isStandalone && (
               <button
                 onClick={installApp}
-                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5 outline-none"
+                className="relative p-1.5 px-2.5 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer animate-pulse flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5 outline-none"
                 title="Tải ứng dụng Web-App"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3.5 h-3.5" />
                 <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-slate-200">Tải App</span>
               </button>
             )}
 
-            {/* Watchlist Button */}
+            {/* Watchlist Button - Chỉ hiện từ màn hình tablet/PC trở lên */}
             <Link
               href="/watchlist"
-              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none"
+              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none hidden md:flex"
               title="Danh sách yêu thích"
             >
               <Heart className="w-5.5 h-5.5" />
               {mounted && watchlist.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-gradient-brand text-[10px] font-black flex items-center justify-center text-white border border-navy-dark shadow-md">
+                <span className="absolute top-0.5 right-0.5 w-4.5 h-4.5 rounded-full bg-gradient-brand text-[9px] font-black flex items-center justify-center text-white border border-navy-dark shadow-md">
                   {watchlist.length}
                 </span>
               )}
             </Link>
 
-            {/* History Button */}
+            {/* History Button - Chỉ hiện từ màn hình tablet/PC trở lên */}
             <Link
               href="/lich-su"
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none"
+              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none hidden md:flex"
               title="Lịch sử xem phim"
             >
               <History className="w-5.5 h-5.5" />
             </Link>
-
-            {/* Mobile Menu Toggle Button */}
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 lg:hidden cursor-pointer outline-none"
-              aria-label="Toggle Menu"
-            >
-              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
           </div>
 
         </div>
       </div>
-
-      {/* Mobile Navigation & Search Drawer */}
-      {isOpen && (
-        <div className="lg:hidden glass-panel border-t border-slate-800/50 py-4 px-4 space-y-4 shadow-xl">
-          {/* Mobile Search Input */}
-          <form onSubmit={handleSearchSubmit} className="relative group">
-            <input
-              type="text"
-              placeholder="Tìm kiếm phim..."
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              className="w-full h-10 px-4 pl-10 text-sm bg-slate-900/60 border border-slate-700/50 rounded-full focus:outline-none focus:border-brand-violet text-white transition-colors"
-            />
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          </form>
-
-          {/* Mobile Links */}
-          <nav className="flex flex-col space-y-2 text-sm font-semibold">
-            {navLinks.map((link) => {
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`px-3 py-2 rounded-lg transition-all active:scale-[0.98] active:duration-75 outline-none ${
-                    isActive
-                      ? 'bg-gradient-brand text-white'
-                      : 'text-slate-300 hover:bg-slate-800/30 hover:text-white active:bg-slate-800/50'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Mobile Install App Button */}
-          {mounted && !isStandalone && (
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                installApp();
-              }}
-              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-brand hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer transform active:scale-98 transition-all outline-none"
-            >
-              <Download className="w-5 h-5 animate-bounce" />
-              Tải ứng dụng PhimHoaToc
-            </button>
-          )}
-        </div>
-      )}
     </header>
   );
 };

@@ -4,6 +4,7 @@ import './globals.css';
 import { AppProvider } from '@/context/AppContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { BottomNav } from '@/components/BottomNav';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -32,10 +33,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-navy-dark text-slate-100 font-sans">
         <AppProvider>
           <Header />
-          <main className="flex-1 w-full relative z-10 outline-none">
+          <main className="flex-1 w-full relative z-10 outline-none pb-16 lg:pb-0">
             {children}
           </main>
           <Footer />
+          <BottomNav />
         </AppProvider>
       </body>
     </html>

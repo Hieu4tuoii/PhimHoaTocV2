@@ -3,6 +3,7 @@ import { searchMovies } from '@/services/api';
 import { MovieCard } from '@/components/MovieCard';
 import { Pagination } from '@/components/Pagination';
 import { Search, Film } from 'lucide-react';
+import { SearchForm } from '@/components/SearchForm';
 
 interface PageProps {
   searchParams: Promise<{
@@ -27,8 +28,13 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   return (
     <div className="w-full min-h-screen pb-16 pt-24 sm:pt-28">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-slide-up">
         
+        {/* Thanh tìm kiếm to rõ - Cực kỳ hữu ích cho Mobile Web App */}
+        <div className="w-full max-w-2xl mx-auto">
+          <SearchForm initialKeyword={keyword} />
+        </div>
+
         {/* Search header status info */}
         <div className="border-b border-slate-900 pb-6 space-y-2">
           <h1 className="text-2xl sm:text-3xl font-black text-white flex items-center gap-2">
@@ -41,7 +47,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
                 Tìm thấy <span className="text-brand-cyan font-bold">{pagination.totalItems}</span> bộ phim phù hợp với từ khóa <span className="text-brand-rose font-bold">"{keyword}"</span>
               </>
             ) : (
-              'Vui lòng nhập từ khóa để tìm kiếm phim...'
+              'Vui lòng nhập từ khóa ở thanh tìm kiếm phía trên để tìm phim...'
             )}
           </p>
         </div>

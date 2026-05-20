@@ -128,7 +128,7 @@ export default function HistoryPage() {
                   {/* Play action button */}
                   <Link
                     href={`/xem-phim/${item.slug}/${item.episodeSlug}`}
-                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-800/80 group-hover/history-item:bg-gradient-brand text-slate-300 group-hover/history-item:text-white flex items-center justify-center border border-slate-700/50 group-hover/history-item:border-transparent transition-all duration-300 shadow-md group-hover/history-item:shadow-brand-rose/25 hover:scale-105 flex-shrink-0 cursor-pointer"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-brand text-white flex items-center justify-center transition-all duration-300 shadow-md shadow-brand-rose/20 active:scale-95 flex-shrink-0 cursor-pointer md:bg-slate-800/80 md:text-slate-300 md:border md:border-slate-700/50 md:shadow-none md:group-hover/history-item:bg-gradient-brand md:group-hover/history-item:text-white md:group-hover/history-item:border-transparent md:group-hover/history-item:shadow-brand-rose/25"
                     title={`Xem tiếp ${item.episodeName}`}
                   >
                     <Play className="w-5 h-5 fill-current ml-0.5" />

@@ -78,8 +78,8 @@ export default async function MovieDetailPage({ params }: PageProps) {
               />
             </div>
             
-            {/* Direct Information Badges under poster */}
-            <div className="w-full grid grid-cols-2 gap-3 text-center text-xs">
+            {/* Direct Information Badges under poster - Ẩn trên Mobile, chỉ hiện trên PC */}
+            <div className="hidden md:grid w-full grid-cols-2 gap-3 text-center text-xs">
               <div className="p-3 bg-white/5 border border-white/8 rounded-xl backdrop-blur-md shadow-inner transition-colors hover:bg-white/8">
                 <span className="block text-slate-400 font-bold uppercase tracking-wider mb-1 text-[10px]">Chất lượng</span>
                 <span className="text-brand-cyan font-extrabold uppercase text-sm tracking-wide drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">{movie.quality || 'HD'}</span>
@@ -98,9 +98,23 @@ export default async function MovieDetailPage({ params }: PageProps) {
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-tight drop-shadow-md">
                 {movie.name}
               </h1>
-              <h2 className="text-base sm:text-xl text-slate-400 font-semibold italic drop-shadow-sm">
-                {movie.origin_name} ({movie.year})
-              </h2>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-1 text-sm text-slate-400">
+                <span className="font-semibold italic drop-shadow-sm">
+                  {movie.origin_name}
+                </span>
+                <span className="hidden sm:inline-block text-slate-600">•</span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-[10px] font-black bg-brand-cyan/10 border border-brand-cyan/20 text-brand-cyan rounded-md uppercase tracking-wider">
+                    {movie.quality || 'HD'}
+                  </span>
+                  <span className="px-2 py-0.5 text-[10px] font-black bg-brand-rose/10 border border-brand-rose/20 text-brand-rose rounded-md uppercase tracking-wider">
+                    {movie.lang || 'Vietsub'}
+                  </span>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-white/5 border border-white/10 text-slate-350 rounded-md">
+                    {movie.year}
+                  </span>
+                </div>
+              </div>
 
               {/* Nút Xem ngay & Yêu thích trên màn Mobile (hiển thị ngay dưới tên phim) */}
               <div className="md:hidden w-full pt-4">

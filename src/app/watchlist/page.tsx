@@ -47,7 +47,7 @@ export default function WatchlistPage() {
                 {/* Delete button positioned floating over the card */}
                 <button
                   onClick={() => removeFromWatchlist(movie.slug)}
-                  className="absolute top-2 right-2 z-20 flex items-center justify-center w-8 h-8 rounded-lg bg-navy-dark/95 border border-slate-800 text-slate-400 hover:text-brand-rose shadow-md hover:scale-105 cursor-pointer opacity-0 group-hover/watchlist-card:opacity-100 transition-opacity duration-300"
+                  className="absolute top-2 right-2 z-20 flex items-center justify-center w-8 h-8 rounded-lg bg-navy-dark/95 border border-slate-800 text-slate-400 hover:text-brand-rose shadow-md active:scale-90 md:opacity-0 md:group-hover/watchlist-card:opacity-100 transition-opacity duration-300 cursor-pointer"
                   title="Xóa khỏi danh sách yêu thích"
                 >
                   <Trash2 className="w-4.5 h-4.5" />
