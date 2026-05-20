@@ -112,10 +112,10 @@ export default async function HomePage() {
       )}
 
       {/* 2. MOVIE CAROUSELS LISTS SECTION */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12 pb-8">
         
         {/* New Updates - Wrapped in Glass Panel */}
-        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="Mới Cập Nhật"
             movies={newUpdates.items}
@@ -124,7 +124,7 @@ export default async function HomePage() {
         </div>
 
         {/* Series Movies - Clean Dark Background */}
-        <div className="px-2 sm:px-4 py-2">
+        <div className="px-0 sm:px-4 py-2">
           <MovieSlider
             title="Phim Bộ Hot"
             movies={seriesMovies.items}
@@ -133,7 +133,7 @@ export default async function HomePage() {
         </div>
 
         {/* Single Movies - Wrapped in Glass Panel */}
-        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="Phim Lẻ Hot"
             movies={singleMovies.items}
@@ -142,7 +142,7 @@ export default async function HomePage() {
         </div>
 
         {/* Anime / Cartoon - Clean Dark Background */}
-        <div className="px-2 sm:px-4 py-2">
+        <div className="px-0 sm:px-4 py-2">
           <MovieSlider
             title="Hoạt Hình / Anime"
             movies={animeMovies.items}
@@ -151,7 +151,7 @@ export default async function HomePage() {
         </div>
 
         {/* TV Shows - Wrapped in Glass Panel */}
-        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="TV Shows Đặc Sắc"
             movies={tvShows.items}
