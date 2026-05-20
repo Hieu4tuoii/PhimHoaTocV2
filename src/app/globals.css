@@ -172,10 +172,15 @@ a:focus {
   height: 100vh !important;
 }
 
-/* Tăng kích thước nút bấm trong player cho mobile touch */
+/* Tăng kích thước nút bấm trong player và tối ưu hóa phản hồi chạm trên mobile touch */
 @media (pointer: coarse) {
   .custom-player-container button {
     min-width: 44px;
     min-height: 44px;
+  }
+  
+  a, button, select, input[type="submit"], [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 }

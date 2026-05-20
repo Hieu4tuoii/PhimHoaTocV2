@@ -29,7 +29,7 @@ export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages,
       {currentPage > 1 ? (
         <Link
           href={buildPageLink(currentPage - 1)}
-          className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose hover:bg-slate-800 transition-colors text-slate-300 hover:text-white"
+          className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose hover:bg-slate-800 active:scale-90 active:duration-75 transition-all duration-200 text-slate-300 hover:text-white"
         >
           <ChevronLeft className="w-5 h-5" />
         </Link>
@@ -47,7 +47,7 @@ export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages,
         <>
           <Link
             href={buildPageLink(1)}
-            className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose text-slate-300 hover:text-white transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose active:scale-90 active:duration-75 transition-all text-slate-300 hover:text-white"
           >
             1
           </Link>
@@ -65,7 +65,7 @@ export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages,
           <Link
             key={p}
             href={buildPageLink(p)}
-            className={`flex items-center justify-center w-10 h-10 rounded-xl font-bold transition-all duration-300 ${
+            className={`flex items-center justify-center w-10 h-10 rounded-xl font-bold transition-all duration-300 active:scale-90 active:duration-75 ${
               isCurrent
                 ? 'bg-gradient-brand text-white border-transparent shadow-lg shadow-brand-violet/25'
                 : 'bg-slate-900/60 border border-slate-800 hover:border-brand-rose text-slate-300 hover:text-white'
@@ -84,7 +84,7 @@ export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages,
           )}
           <Link
             href={buildPageLink(totalPages)}
-            className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose text-slate-300 hover:text-white transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose active:scale-90 active:duration-75 transition-all text-slate-300 hover:text-white"
           >
             {totalPages}
           </Link>
@@ -95,7 +95,7 @@ export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages,
       {currentPage < totalPages ? (
         <Link
           href={buildPageLink(currentPage + 1)}
-          className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose hover:bg-slate-800 transition-colors text-slate-300 hover:text-white"
+          className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-brand-rose hover:bg-slate-800 active:scale-90 active:duration-75 transition-all duration-200 text-slate-300 hover:text-white"
         >
           <ChevronRight className="w-5 h-5" />
         </Link>

@@ -108,7 +108,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group flex-shrink-0 outline-none">
+          <Link href="/" className="flex items-center gap-2 group flex-shrink-0 outline-none active:scale-95 active:duration-75 transition-transform">
             <div className="w-9 h-9 rounded-lg bg-gradient-brand flex items-center justify-center shadow-neon border border-white/10 group-hover:scale-105 transition-transform duration-300">
               <Play className="w-5 h-5 text-white fill-white ml-0.5" />
             </div>
@@ -222,7 +222,7 @@ export const Header: React.FC = () => {
             {mounted && !isStandalone && (
               <button
                 onClick={installApp}
-                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5 outline-none"
+                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5 outline-none"
                 title="Tải ứng dụng Web-App"
               >
                 <Download className="w-4 h-4" />
@@ -233,7 +233,7 @@ export const Header: React.FC = () => {
             {/* Watchlist Button */}
             <Link
               href="/watchlist"
-              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer outline-none"
+              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none"
               title="Danh sách yêu thích"
             >
               <Heart className="w-5.5 h-5.5" />
@@ -247,7 +247,7 @@ export const Header: React.FC = () => {
             {/* History Button */}
             <Link
               href="/lich-su"
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer outline-none"
+              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 cursor-pointer outline-none"
               title="Lịch sử xem phim"
             >
               <History className="w-5.5 h-5.5" />
@@ -256,7 +256,7 @@ export const Header: React.FC = () => {
             {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 lg:hidden cursor-pointer outline-none"
+              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white active:scale-95 active:duration-75 transition-all duration-200 lg:hidden cursor-pointer outline-none"
               aria-label="Toggle Menu"
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -290,10 +290,10 @@ export const Header: React.FC = () => {
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
-                  className={`px-3 py-2 rounded-lg transition-colors outline-none ${
+                  className={`px-3 py-2 rounded-lg transition-all active:scale-[0.98] active:duration-75 outline-none ${
                     isActive
                       ? 'bg-gradient-brand text-white'
-                      : 'text-slate-300 hover:bg-slate-800/30 hover:text-white'
+                      : 'text-slate-300 hover:bg-slate-800/30 hover:text-white active:bg-slate-800/50'
                   }`}
                 >
                   {link.name}

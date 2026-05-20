@@ -79,7 +79,7 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
         {viewAllLink && (
           <Link
             href={viewAllLink}
-            className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-brand-cyan hover:text-brand-rose transition-colors duration-300 group/link"
+            className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-brand-cyan hover:text-brand-rose active:scale-95 active:duration-75 transition-all duration-300 group/link"
           >
             Xem tất cả
             <ArrowRight className="w-3.5 h-3.5 transform transition-transform duration-300 group-hover/link:translate-x-1" />
@@ -93,7 +93,7 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
         {showLeftBtn && (
           <button
             onClick={() => scroll('left')}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full glass-panel hover:bg-gradient-brand text-white border border-white/10 hover:border-transparent transition-all duration-300 shadow-neon opacity-0 group-hover/slider:opacity-100 cursor-pointer"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full glass-panel hover:bg-gradient-brand text-white border border-white/10 hover:border-transparent active:scale-90 active:duration-75 transition-all duration-300 shadow-neon opacity-0 group-hover/slider:opacity-100 cursor-pointer"
             aria-label="Scroll Left"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -104,7 +104,7 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
         {showRightBtn && (
           <button
             onClick={() => scroll('right')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full glass-panel hover:bg-gradient-brand text-white border border-white/10 hover:border-transparent transition-all duration-300 shadow-neon opacity-0 group-hover/slider:opacity-100 cursor-pointer"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full glass-panel hover:bg-gradient-brand text-white border border-white/10 hover:border-transparent active:scale-90 active:duration-75 transition-all duration-300 shadow-neon opacity-0 group-hover/slider:opacity-100 cursor-pointer"
             aria-label="Scroll Right"
           >
             <ChevronRight className="w-6 h-6" />

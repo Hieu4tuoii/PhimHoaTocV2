@@ -79,7 +79,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
         {watchLink !== '#' ? (
           <Link
             href={watchLink}
-            className="flex-1 flex flex-col items-center justify-center gap-1 px-8 py-4 bg-gradient-to-r from-brand-violet to-brand-rose text-white rounded-2xl shadow-lg shadow-brand-rose/25 hover:shadow-brand-rose/45 transform hover:-translate-y-0.5 hover:scale-[1.01] transition-all duration-300 cursor-pointer group relative overflow-hidden"
+            className="flex-1 flex flex-col items-center justify-center gap-1 px-8 py-4 bg-gradient-to-r from-brand-violet to-brand-rose text-white rounded-2xl shadow-lg shadow-brand-rose/25 hover:shadow-brand-rose/45 transform hover:-translate-y-0.5 hover:scale-[1.01] active:scale-[0.98] active:translate-y-0 active:shadow-brand-rose/15 active:duration-75 transition-all duration-300 cursor-pointer group relative overflow-hidden"
           >
             {/* Lớp phủ sáng lấp lánh khi hover */}
             <div className="absolute inset-0 w-full h-full bg-white/10 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 ease-out" />
@@ -114,7 +114,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
 
         <button
           onClick={handleFavoriteToggle}
-          className={`px-6 py-4 flex items-center justify-center gap-2 text-base font-black uppercase tracking-wider rounded-2xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${
+          className={`px-6 py-4 flex items-center justify-center gap-2 text-base font-black uppercase tracking-wider rounded-2xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
             isFavActive
               ? 'bg-brand-violet/10 border-brand-violet text-brand-rose shadow-neon'
               : 'bg-white/5 border-white/8 hover:border-brand-rose hover:bg-brand-rose/10 text-slate-200 shadow-md'
@@ -148,7 +148,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
             {movie.content && movie.content.length > 250 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center gap-1 text-xs font-black uppercase tracking-wider text-brand-cyan hover:text-brand-rose transition-colors pt-2 cursor-pointer group"
+                className="flex items-center gap-1 text-xs font-black uppercase tracking-wider text-brand-cyan hover:text-brand-rose active:scale-95 active:duration-75 transition-colors pt-2 cursor-pointer group"
               >
                 {isExpanded ? (
                   <>Thu gọn <ChevronUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" /></>
@@ -176,7 +176,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
                     <button
                       key={server.server_name}
                       onClick={() => setSelectedServerIndex(idx)}
-                      className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border ${
+                      className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border active:scale-95 active:duration-75 ${
                         selectedServerIndex === idx
                           ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
                           : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
@@ -199,7 +199,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
                   <Link
                     key={ep.slug}
                     href={`/xem-phim/${movie.slug}/${ep.slug}`}
-                    className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 ${
+                    className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
                       isWatched
                         ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
                         : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
