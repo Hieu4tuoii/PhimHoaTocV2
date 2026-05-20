@@ -112,42 +112,52 @@ export default async function HomePage() {
       )}
 
       {/* 2. MOVIE CAROUSELS LISTS SECTION */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 pb-8">
         
-        {/* New Updates */}
-        <MovieSlider
-          title="Mới Cập Nhật"
-          movies={newUpdates.items}
-          viewAllLink="/danh-sach/phim-moi-cap-nhat"
-        />
+        {/* New Updates - Wrapped in Glass Panel */}
+        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+          <MovieSlider
+            title="Mới Cập Nhật"
+            movies={newUpdates.items}
+            viewAllLink="/danh-sach/phim-moi-cap-nhat"
+          />
+        </div>
 
-        {/* Series Movies */}
-        <MovieSlider
-          title="Phim Bộ Hot"
-          movies={seriesMovies.items}
-          viewAllLink="/danh-sach/phim-bo"
-        />
+        {/* Series Movies - Clean Dark Background */}
+        <div className="px-2 sm:px-4 py-2">
+          <MovieSlider
+            title="Phim Bộ Hot"
+            movies={seriesMovies.items}
+            viewAllLink="/danh-sach/phim-bo"
+          />
+        </div>
 
-        {/* Single Movies */}
-        <MovieSlider
-          title="Phim Lẻ Hot"
-          movies={singleMovies.items}
-          viewAllLink="/danh-sach/phim-le"
-        />
+        {/* Single Movies - Wrapped in Glass Panel */}
+        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+          <MovieSlider
+            title="Phim Lẻ Hot"
+            movies={singleMovies.items}
+            viewAllLink="/danh-sach/phim-le"
+          />
+        </div>
 
-        {/* Anime / Cartoon */}
-        <MovieSlider
-          title="Hoạt Hình / Anime"
-          movies={animeMovies.items}
-          viewAllLink="/danh-sach/hoat-hinh"
-        />
+        {/* Anime / Cartoon - Clean Dark Background */}
+        <div className="px-2 sm:px-4 py-2">
+          <MovieSlider
+            title="Hoạt Hình / Anime"
+            movies={animeMovies.items}
+            viewAllLink="/danh-sach/hoat-hinh"
+          />
+        </div>
 
-        {/* TV Shows */}
-        <MovieSlider
-          title="TV Shows Đặc Sắc"
-          movies={tvShows.items}
-          viewAllLink="/danh-sach/tv-shows"
-        />
+        {/* TV Shows - Wrapped in Glass Panel */}
+        <div className="bg-white/3 border border-white/5 p-6 sm:p-8 rounded-3xl backdrop-blur-sm shadow-xl shadow-black/10">
+          <MovieSlider
+            title="TV Shows Đặc Sắc"
+            movies={tvShows.items}
+            viewAllLink="/danh-sach/tv-shows"
+          />
+        </div>
 
       </div>
     </div>

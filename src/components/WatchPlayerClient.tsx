@@ -716,14 +716,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       </div>
 
       {/* 4. CHOOSE SERVER & OTHERS EPISODES GRID SELECTOR */}
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-4">
+      <div className="space-y-6 bg-white/3 border border-white/5 p-6 rounded-2xl backdrop-blur-sm shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="w-1 h-4 bg-gradient-brand rounded-full" />
-              Danh sách tập
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
+              Danh Sách Tập Phim
             </h3>
-            <p className="text-xs text-slate-500">Chuyển Danh sách tập hoặc đổi nguồn phát (Server) nếu bị lỗi tải.</p>
+            <p className="text-xs text-slate-500 font-medium">Chuyển Danh sách tập hoặc đổi nguồn phát (Server) nếu bị lỗi tải.</p>
           </div>
           
           {/* Server Switch tabs */}
@@ -733,10 +733,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 <button
                   key={server.server_name}
                   onClick={() => setSelectedServerIndex(idx)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border active:scale-95 active:duration-75 ${
                     selectedServerIndex === idx
-                      ? 'bg-gradient-brand text-white shadow-md'
-                      : 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 border border-slate-700/30'
+                      ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
+                      : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
                   }`}
                 >
                   {server.server_name}
@@ -747,7 +747,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         </div>
 
         {/* Quick select grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-56 overflow-y-auto pr-1">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
           {currentServerEpisodes.map((ep) => {
             const isCurrent = ep.slug === activeEpisode.slug;
             
@@ -755,10 +755,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               <Link
                 key={ep.slug}
                 href={`/xem-phim/${movie.slug}/${ep.slug}`}
-                className={`py-2.5 px-3 text-center text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer ${
+                className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
                   isCurrent
-                    ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
-                    : 'bg-slate-900/40 border-slate-800 hover:border-brand-rose hover:bg-slate-800 text-slate-300'
+                    ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
+                    : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
                 }`}
                 title={ep.filename}
               >
@@ -769,11 +769,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         </div>
 
         {/* Error reporting guide info */}
-        <div className="p-4 bg-slate-900/30 border border-slate-850 rounded-2xl flex items-start gap-3">
+        <div className="p-4 bg-white/2 border border-white/5 rounded-2xl flex items-start gap-3 mt-4">
           <AlertTriangle className="w-5 h-5 text-brand-rose flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h5 className="font-bold text-xs text-slate-300">Gặp sự cố khi tải phim?</h5>
-            <p className="text-xs text-slate-500 leading-normal">
+            <p className="text-xs text-slate-500 leading-normal font-medium">
               Nếu phim không tải được, bạn vui lòng chuyển đổi nguồn phát bằng cách bấm nút **"Chuyển Server Iframe"** hoặc đổi sang **Server 2** ở bảng trên để khắc phục sự cố.
             </p>
           </div>
