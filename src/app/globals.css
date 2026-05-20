@@ -163,3 +163,19 @@ a:focus {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Fullscreen video player — loại bỏ rounded corners, chiếm toàn bộ viewport */
+.custom-player-container:fullscreen {
+  border-radius: 0 !important;
+  border: none !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* Tăng kích thước nút bấm trong player cho mobile touch */
+@media (pointer: coarse) {
+  .custom-player-container button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

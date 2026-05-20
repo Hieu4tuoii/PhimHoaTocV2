@@ -42,6 +42,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const resumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mouseMoveThrottleRef = useRef(false);
   const lastClickTimeRef = useRef(0);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+  const isTouchDeviceRef = useRef(false);
+  const touchHandledRef = useRef(false);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
@@ -87,9 +90,23 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, [isCinemaMode]);
 
-  // 2.1. Cleanup control & resume timers on unmount
+  // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset
   useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        // User thoát fullscreen (Escape/Back) → unlock orientation
+        try {
+          (screen.orientation as any).unlock();
+        } catch {
+          // Không hỗ trợ — bỏ qua
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
     return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
@@ -322,31 +339,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
-  const handlePlayerClick = useCallback((e: React.MouseEvent) => {
-    // Chỉ xử lý nếu click vào vùng trống (không click vào các phần tử tương tác như button, input, a, hoặc div chứa cụ thể)
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName === 'BUTTON' || 
-      target.tagName === 'INPUT' || 
-      target.tagName === 'A' || 
-      target.closest('.controls-prevent-click')
-    ) {
-      return;
-    }
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Ghi nhận thời điểm click để ngăn mousemove nhận diện nhầm do rung tay/nhích chuột nhẹ
+  // Logic chung toggle controls / play — dùng cho cả click lẫn touch
+  const handlePlayerTap = useCallback(() => {
     lastClickTimeRef.current = Date.now();
 
     if (isPlaying) {
-      // Nếu phim đang phát, click vào vùng trống sẽ ẩn/hiện các thanh điều khiển ngay lập tức
       setShowControls((prev) => {
         const nextState = !prev;
         if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
         if (nextState) {
-          // Nếu hiện lại controls, tự động ẩn sau 3 giây của inactivity
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
@@ -354,10 +355,46 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         return nextState;
       });
     } else {
-      // Nếu phim đang pause, click vào vùng trống sẽ phát tiếp video
       togglePlay();
     }
   }, [isPlaying, togglePlay]);
+
+  // Kiểm tra xem event target có phải interactive element không
+  const isInteractiveTarget = useCallback((target: HTMLElement): boolean => {
+    const interactiveTags = ['BUTTON', 'INPUT', 'A', 'SELECT', 'TEXTAREA'];
+    // Kiểm tra chính element hoặc parent gần nhất
+    if (interactiveTags.includes(target.tagName)) return true;
+    if (target.closest('button, input, a, .controls-prevent-click')) return true;
+    // SVG icon bên trong button
+    if (target.closest('svg')?.closest('button')) return true;
+    return false;
+  }, []);
+
+  const handlePlayerClick = useCallback((e: React.MouseEvent) => {
+    // Nếu touch đã xử lý rồi, bỏ qua click (tránh double-fire trên mobile)
+    if (touchHandledRef.current) {
+      touchHandledRef.current = false;
+      return;
+    }
+
+    const target = e.target as HTMLElement;
+    if (isInteractiveTarget(target)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    handlePlayerTap();
+  }, [handlePlayerTap, isInteractiveTarget]);
+
+  // Touch handler riêng cho mobile — phản hồi ngay tại touchend, không chờ 300ms click delay
+  const handlePlayerTouchEnd = useCallback((e: React.TouchEvent) => {
+    isTouchDeviceRef.current = true;
+    const target = e.target as HTMLElement;
+    if (isInteractiveTarget(target)) return;
+
+    e.preventDefault();
+    touchHandledRef.current = true;
+    handlePlayerTap();
+  }, [handlePlayerTap, isInteractiveTarget]);
 
   const handleSeekChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;
@@ -376,19 +413,37 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     setVolume(val);
   }, []);
 
-  const toggleFullscreen = useCallback(() => {
-    const playerContainer = document.querySelector('.custom-player-container');
+  const toggleFullscreen = useCallback(async () => {
+    const playerContainer = playerContainerRef.current;
     if (!playerContainer) return;
 
     if (!document.fullscreenElement) {
-      playerContainer.requestFullscreen().catch(err => console.error(err));
+      try {
+        await playerContainer.requestFullscreen();
+        // Thử xoay ngang khi vào fullscreen (mobile/tablet)
+        try {
+          await (screen.orientation as any).lock('landscape');
+        } catch {
+          // Orientation lock không được hỗ trợ hoặc bị từ chối — bỏ qua
+        }
+      } catch (err) {
+        console.error('Fullscreen error:', err);
+      }
     } else {
+      try {
+        (screen.orientation as any).unlock();
+      } catch {
+        // Không hỗ trợ orientation unlock — bỏ qua
+      }
       document.exitFullscreen();
     }
   }, []);
 
   // Performance: Throttled mouse move handler (max 1 call per 300ms)
   const handleMouseMove = useCallback(() => {
+    // Bỏ qua trên touch device — đã có touch handler riêng
+    if (isTouchDeviceRef.current) return;
+
     // Ngăn chặn mousemove làm hiện lại controls ngay sau khi click ẩn controls (trong vòng 800ms)
     if (Date.now() - lastClickTimeRef.current < 800) return;
 
@@ -420,6 +475,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
       {/* 2. CINEMA PLAYER CONTAINER */}
       <div 
+        ref={playerContainerRef}
         className={`custom-player-container relative aspect-video w-full bg-black rounded-2xl overflow-hidden border border-slate-800/80 shadow-2xl z-40 transition-all duration-500 ${
           isCinemaMode 
             ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
@@ -435,6 +491,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               ref={videoRef}
               className="w-full h-full object-contain"
               onClick={handlePlayerClick}
+              onTouchEnd={handlePlayerTouchEnd}
               playsInline
             />
 
@@ -444,6 +501,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
               onClick={handlePlayerClick}
+              onTouchEnd={handlePlayerTouchEnd}
             >
               {/* Top controls: Movie titles */}
               <div className="flex justify-between items-start controls-prevent-click">
