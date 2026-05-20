@@ -62,6 +62,12 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
   const handleApplyFilters = () => {
     const queryParams = new URLSearchParams();
     
+    // Giữ lại keyword hiện tại trên URL nếu có để tìm kiếm kết hợp lọc
+    const keyword = searchParams.get('keyword');
+    if (keyword) {
+      queryParams.set('keyword', keyword);
+    }
+    
     // Luôn bắt buộc có loại phim (Type) để kết hợp API của KKPhim
     queryParams.set('type', type);
     

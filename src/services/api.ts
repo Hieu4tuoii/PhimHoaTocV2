@@ -87,12 +87,18 @@ export async function getMoviesByType(
 }
 
 // 4. Search movies
-export async function searchMovies(keyword: string, page: number = 1, limit: number = 24): Promise<MovieListResponse> {
+export async function searchMovies(
+  keyword: string,
+  page: number = 1,
+  limit: number = 24,
+  extraParams: Record<string, string> = {}
+): Promise<MovieListResponse> {
   try {
     const queryParams = new URLSearchParams({
       keyword,
       page: String(page),
       limit: String(limit),
+      ...extraParams,
     });
     const res = await fetch(`${BASE_URL}/v1/api/tim-kiem?${queryParams.toString()}`, {
       // Don't cache searches as they are highly dynamic

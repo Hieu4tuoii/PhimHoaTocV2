@@ -76,21 +76,22 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   const hasFilters = category || country || year || sortField !== 'modified' || type !== 'phim-le';
 
+  // Trích xuất các tham số bộ lọc nâng cao
+  const extraParams: Record<string, string> = {};
+  if (category) extraParams.category = category;
+  if (country) extraParams.country = country;
+  if (year) extraParams.year = year;
+  if (sortField) extraParams.sort_field = sortField;
+
   // Phân luồng logic fetch API
   let data = null;
   let isDefaultList = false;
 
   if (keyword) {
-    // Luồng 1: Có từ khóa tìm kiếm
-    data = await searchMovies(keyword, currentPage, 24);
+    // Luồng 1: Có từ khóa tìm kiếm kết hợp các bộ lọc nâng cao song song
+    data = await searchMovies(keyword, currentPage, 24, extraParams);
   } else if (hasFilters) {
     // Luồng 2: Không có từ khóa nhưng có bộ lọc
-    const extraParams: Record<string, string> = {};
-    if (category) extraParams.category = category;
-    if (country) extraParams.country = country;
-    if (year) extraParams.year = year;
-    if (sortField) extraParams.sort_field = sortField;
-
     data = await getMoviesByType(type, currentPage, 24, extraParams);
   } else {
     // Luồng 3: Trang mặc định trống (không từ khóa, không bộ lọc) ➔ Tự động fetch phim lẻ mới nhất
@@ -101,30 +102,45 @@ export default async function SearchPage({ searchParams }: PageProps) {
   const movies = data?.items || [];
   const pagination = data?.pagination || { totalItems: 0, currentPage: 1, totalPages: 1 };
 
-  // Tạo link phân trang
+  // Tạo link phân trang đồng bộ giữ nguyên cả keyword và các bộ lọc
   const buildPageLink = (pageNumber: number) => {
     const query = new URLSearchParams();
     if (keyword) {
       query.set('keyword', keyword);
-    } else {
-      query.set('type', type);
-      if (category) query.set('category', category);
-      if (country) query.set('country', country);
-      if (year) query.set('year', year);
-      if (sortField) query.set('sort_field', sortField);
     }
+    
+    // Luôn lưu giữ các tham số bộ lọc khi phân trang
+    query.set('type', type);
+    if (category) query.set('category', category);
+    if (country) query.set('country', country);
+    if (year) query.set('year', year);
+    if (sortField) query.set('sort_field', sortField);
+    
     query.set('page', String(pageNumber));
     return `/tim-kiem?${query.toString()}`;
   };
 
-  // Xác định tiêu đề hiển thị động
+  // Xác định tiêu đề hiển thị động báo kết quả kết hợp thông minh
   let displayTitle = '';
   let subTitle = '';
   let IconHeader = Search;
 
   if (keyword) {
-    displayTitle = `Kết Quả Tìm Kiếm`;
-    subTitle = `Tìm thấy ${pagination.totalItems || 0} bộ phim phù hợp với từ khóa "${keyword}"`;
+    displayTitle = hasFilters ? `Kết Quả Tìm Kiếm & Lọc` : `Kết Quả Tìm Kiếm`;
+    
+    let filterString = `Từ khóa: "${keyword}"`;
+    const typeName = TYPE_NAMES[type] || 'Phim Lẻ';
+    const activeGenre = genres.find((g) => g.slug === category);
+    const activeCountry = countries.find((c) => c.slug === country);
+    
+    if (hasFilters) {
+      filterString += ` • Loại: ${typeName}`;
+      if (activeGenre) filterString += ` • Thể loại: ${activeGenre.name}`;
+      if (activeCountry) filterString += ` • ${activeCountry.name}`;
+      if (year) filterString += ` • Năm: ${year}`;
+    }
+    
+    subTitle = `${filterString} (Tìm thấy ${pagination.totalItems || 0} phim)`;
     IconHeader = Search;
   } else if (hasFilters) {
     const typeName = TYPE_NAMES[type] || 'Phim Lẻ';

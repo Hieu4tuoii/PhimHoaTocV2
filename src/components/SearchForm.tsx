@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 
 interface SearchFormProps {
@@ -11,23 +11,106 @@ interface SearchFormProps {
 
 export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', autoFocus = false }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [keyword, setKeyword] = useState(initialKeyword);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Đồng bộ hóa keyword khi initialKeyword từ URL thay đổi (như khi nhấn Back/Forward trình duyệt)
   useEffect(() => {
     setKeyword(initialKeyword);
   }, [initialKeyword]);
 
+  // Tự động focus vào ô tìm kiếm khi mount trang
   useEffect(() => {
     if (autoFocus && inputRef.current) {
       inputRef.current.focus();
     }
   }, [autoFocus]);
 
+  // Cơ chế tìm kiếm Debounce (Instant Search) kết hợp giữ nguyên bộ lọc
+  useEffect(() => {
+    // Tránh kích hoạt chuyển hướng nếu keyword nhập vào trùng khớp với từ khóa đang có sẵn trên URL
+    if (keyword.trim() === initialKeyword.trim()) {
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(() => {
+      const trimmed = keyword.trim();
+      const queryParams = new URLSearchParams();
+
+      // Giữ lại các bộ lọc hiện tại trên URL để tìm kiếm kết hợp
+      const type = searchParams.get('type');
+      const category = searchParams.get('category');
+      const country = searchParams.get('country');
+      const year = searchParams.get('year');
+      const sortField = searchParams.get('sort_field');
+
+      if (type) queryParams.set('type', type);
+      if (category) queryParams.set('category', category);
+      if (country) queryParams.set('country', country);
+      if (year) queryParams.set('year', year);
+      if (sortField) queryParams.set('sort_field', sortField);
+
+      if (trimmed) {
+        queryParams.set('keyword', trimmed);
+      } else {
+        // Nếu xóa keyword, vẫn giữ các bộ lọc nâng cao
+        queryParams.delete('keyword');
+      }
+
+      router.push(`/tim-kiem?${queryParams.toString()}`);
+    }, 450); // Đợi 450ms sau khi người dùng ngừng gõ thì tự động kích hoạt tìm kiếm
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [keyword, initialKeyword, router, searchParams]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (keyword.trim()) {
-      router.push(`/tim-kiem?keyword=${encodeURIComponent(keyword.trim())}`);
+    const trimmed = keyword.trim();
+    const queryParams = new URLSearchParams();
+
+    // Giữ lại các bộ lọc hiện tại trên URL
+    const type = searchParams.get('type');
+    const category = searchParams.get('category');
+    const country = searchParams.get('country');
+    const year = searchParams.get('year');
+    const sortField = searchParams.get('sort_field');
+
+    if (type) queryParams.set('type', type);
+    if (category) queryParams.set('category', category);
+    if (country) queryParams.set('country', country);
+    if (year) queryParams.set('year', year);
+    if (sortField) queryParams.set('sort_field', sortField);
+
+    if (trimmed) {
+      queryParams.set('keyword', trimmed);
+    } else {
+      queryParams.delete('keyword');
+    }
+
+    router.push(`/tim-kiem?${queryParams.toString()}`);
+  };
+
+  const handleClear = () => {
+    setKeyword('');
+    const queryParams = new URLSearchParams();
+
+    // Giữ lại các bộ lọc hiện tại trên URL
+    const type = searchParams.get('type') || 'phim-le';
+    const category = searchParams.get('category');
+    const country = searchParams.get('country');
+    const year = searchParams.get('year');
+    const sortField = searchParams.get('sort_field');
+
+    queryParams.set('type', type);
+    if (category) queryParams.set('category', category);
+    if (country) queryParams.set('country', country);
+    if (year) queryParams.set('year', year);
+    if (sortField) queryParams.set('sort_field', sortField);
+
+    router.push(`/tim-kiem?${queryParams.toString()}`);
+    if (inputRef.current) {
+      inputRef.current.focus(); // Giữ lại focus sau khi xóa nhanh để người dùng nhập từ khóa mới
     }
   };
 
@@ -46,7 +129,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
       {keyword && (
         <button
           type="button"
-          onClick={() => setKeyword('')}
+          onClick={handleClear}
           className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer outline-none"
         >
           <X className="w-4 h-4" />
@@ -55,3 +138,4 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
     </form>
   );
 };
+
