@@ -38,6 +38,31 @@ body {
   overflow-x: hidden;
 }
 
+/* Loại bỏ focus outline trên các container & non-interactive elements khi Next.js tự focus sau navigation */
+@layer base {
+  header:focus,
+  main:focus,
+  nav:focus,
+  footer:focus,
+  section:focus,
+  div:focus,
+  span:focus,
+  h1:focus,
+  h2:focus,
+  h3:focus,
+  p:focus,
+  a:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Loại bỏ hoàn toàn vòng focus (outline/ring) trên MỌI phần tử khi click chuột (programmatic focus) */
+  *:focus:not(:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -62,7 +87,7 @@ body {
   background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .text-gradient {

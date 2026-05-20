@@ -32,7 +32,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-navy-dark text-slate-100 font-sans">
         <AppProvider>
           <Header />
-          <main className="flex-1 w-full relative z-10">
+          <main className="flex-1 w-full relative z-10 outline-none">
             {children}
           </main>
           <Footer />

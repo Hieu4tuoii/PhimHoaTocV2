@@ -33,6 +33,13 @@ export const Header: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Adjust scroll state during render when route changes to avoid cascading renders (React recommended pattern)
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setIsScrolled(false);
+  }
+
   // Handle click outside search dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -90,7 +97,7 @@ export const Header: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 outline-none ${
         isScrolled
           ? 'glass-panel py-3 shadow-lg shadow-black/20'
           : 'bg-gradient-to-b from-black/80 to-transparent py-5'
@@ -100,7 +107,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center justify-between gap-2 sm:gap-4">
           
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group flex-shrink-0">
+          <Link href="/" className="flex items-center gap-2 group flex-shrink-0 outline-none">
             <div className="w-9 h-9 rounded-lg bg-gradient-brand flex items-center justify-center shadow-neon border border-white/10 group-hover:scale-105 transition-transform duration-300">
               <Play className="w-5 h-5 text-white fill-white ml-0.5" />
             </div>
@@ -117,7 +124,7 @@ export const Header: React.FC = () => {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`relative py-1.5 transition-colors duration-300 ${
+                  className={`relative py-1.5 transition-colors duration-300 outline-none ${
                     isActive
                       ? 'text-white'
                       : 'text-slate-300 hover:text-white'
@@ -214,7 +221,7 @@ export const Header: React.FC = () => {
             {mounted && !isStandalone && (
               <button
                 onClick={installApp}
-                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5"
+                className="relative p-1.5 px-2 rounded-full hover:bg-slate-800/50 text-brand-rose hover:text-white transition-colors duration-200 cursor-pointer animate-pulse hidden sm:flex items-center justify-center gap-1 border border-brand-rose/25 bg-brand-rose/5 outline-none"
                 title="Tải ứng dụng Web-App"
               >
                 <Download className="w-4 h-4" />
@@ -225,7 +232,7 @@ export const Header: React.FC = () => {
             {/* Watchlist Button */}
             <Link
               href="/watchlist"
-              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer"
+              className="relative p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer outline-none"
               title="Danh sách yêu thích"
             >
               <Heart className="w-5.5 h-5.5" />
@@ -239,7 +246,7 @@ export const Header: React.FC = () => {
             {/* History Button */}
             <Link
               href="/lich-su"
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer"
+              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 cursor-pointer outline-none"
               title="Lịch sử xem phim"
             >
               <History className="w-5.5 h-5.5" />
@@ -248,7 +255,7 @@ export const Header: React.FC = () => {
             {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 lg:hidden cursor-pointer"
+              className="p-2 rounded-full hover:bg-slate-800/50 text-slate-300 hover:text-white transition-colors duration-200 lg:hidden cursor-pointer outline-none"
               aria-label="Toggle Menu"
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -282,7 +289,7 @@ export const Header: React.FC = () => {
                   key={link.name}
                   href={link.href}
                   onClick={() => setIsOpen(false)}
-                  className={`px-3 py-2 rounded-lg transition-colors ${
+                  className={`px-3 py-2 rounded-lg transition-colors outline-none ${
                     isActive
                       ? 'bg-gradient-brand text-white'
                       : 'text-slate-300 hover:bg-slate-800/30 hover:text-white'
@@ -301,7 +308,7 @@ export const Header: React.FC = () => {
                 setIsOpen(false);
                 installApp();
               }}
-              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-brand hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer transform active:scale-98 transition-all"
+              className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-brand hover:brightness-110 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-brand-rose/25 cursor-pointer transform active:scale-98 transition-all outline-none"
             >
               <Download className="w-5 h-5 animate-bounce" />
               Tải ứng dụng PhimHoaToc
