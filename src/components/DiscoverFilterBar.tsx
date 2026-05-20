@@ -70,8 +70,8 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
     if (year) queryParams.set('year', year);
     if (sortField) queryParams.set('sort_field', sortField);
 
-    // Điều hướng về trang khám phá kèm các tham số mới
-    router.push(`/kham-pha?${queryParams.toString()}`);
+    // Điều hướng về trang tìm kiếm kèm các tham số mới
+    router.push(`/tim-kiem?${queryParams.toString()}`);
   };
 
   const handleClearFilters = () => {
@@ -80,7 +80,7 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
     setCountry('');
     setYear('');
     setSortField('modified');
-    router.push('/kham-pha');
+    router.push('/tim-kiem');
   };
 
   const hasActiveFilters = category || country || year || sortField !== 'modified' || type !== 'phim-le';

@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, Search, Heart, History } from 'lucide-react';
+import { Home, Search, Heart, History } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 
 export const BottomNav: React.FC = () => {
@@ -12,7 +12,6 @@ export const BottomNav: React.FC = () => {
 
   const navItems = [
     { name: 'Trang Chủ', href: '/', icon: Home },
-    { name: 'Khám Phá', href: '/kham-pha', icon: Compass },
     { name: 'Tìm Kiếm', href: '/tim-kiem', icon: Search },
     { name: 'Yêu Thích', href: '/watchlist', icon: Heart, badge: watchlist.length },
     { name: 'Lịch Sử', href: '/lich-su', icon: History },
