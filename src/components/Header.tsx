@@ -82,6 +82,7 @@ export const Header: React.FC = () => {
     e.preventDefault();
     if (keyword.trim()) {
       setShowDropdown(false);
+      setIsOpen(false); // Tự động đóng Mobile Menu Drawer khi tìm kiếm thành công
       router.push(`/tim-kiem?keyword=${encodeURIComponent(keyword.trim())}`);
     }
   };
