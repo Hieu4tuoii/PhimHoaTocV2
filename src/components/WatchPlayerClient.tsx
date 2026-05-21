@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, Maximize, PlayCircle } from 'lucide-react';
+import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { MovieDetail, MovieServer, EpisodeData } from '@/types';
 import Hls from 'hls.js';
@@ -34,6 +34,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Custom States cho các nút điều khiển mới
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
   const [isPipSupported, setIsPipSupported] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [showUnlockBtn, setShowUnlockBtn] = useState(false);
+
+  const unlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prevVolumeRef = useRef(1);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -144,6 +149,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       window.removeEventListener('resize', handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
+      if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
     };
   }, []);
 
@@ -182,6 +188,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (progressBarRef.current) {
       progressBarRef.current.value = String(time);
       progressBarRef.current.max = String(dur || 0);
+      // Tô màu đỏ phần progress trượt qua
+      const pct = dur > 0 ? (time / dur) * 100 : 0;
+      progressBarRef.current.style.background = `linear-gradient(to right, #ef4444 0%, #ef4444 ${pct}%, #334155 ${pct}%, #334155 100%)`;
     }
     if (currentTimeDisplayRef.current) {
       currentTimeDisplayRef.current.textContent = formatTime(time);
@@ -489,6 +498,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.volume > 0) {
+      prevVolumeRef.current = video.volume;
+      video.volume = 0;
+      setVolume(0);
+    } else {
+      const targetVol = prevVolumeRef.current > 0 ? prevVolumeRef.current : 1;
+      video.volume = targetVol;
+      setVolume(targetVol);
+    }
+  }, []);
+
   // Performance: Throttled mouse move handler (max 1 call per 300ms)
   const handleMouseMove = useCallback(() => {
     // Bỏ qua trên touch device — đã có touch handler riêng
@@ -545,14 +569,48 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               playsInline
             />
 
+            {/* Khóa màn hình Overlay */}
+            {isLocked && isLandscapeFullscreen && (
+              <div 
+                className="absolute inset-0 z-50 flex items-center justify-start p-6 bg-black/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowUnlockBtn(true);
+                  if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
+                  unlockTimeoutRef.current = setTimeout(() => setShowUnlockBtn(false), 3000);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  setShowUnlockBtn(true);
+                  if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
+                  unlockTimeoutRef.current = setTimeout(() => setShowUnlockBtn(false), 3000);
+                }}
+              >
+                {(showUnlockBtn || !isPlaying) && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsLocked(false);
+                      setShowControls(true);
+                    }}
+                    className="w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg animate-pulse transition-all"
+                    title="Mở khóa màn hình"
+                  >
+                    <Lock className="w-5 h-5 text-white" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Custom Overlay Controls */}
-            <div 
-              className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40 flex flex-col justify-between p-4 transition-opacity duration-300 ${
-                showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              onClick={handlePlayerClick}
-              onTouchEnd={handlePlayerTouchEnd}
-            >
+            {!isLocked && (
+              <div 
+                className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40 flex flex-col justify-between p-4 transition-opacity duration-300 ${
+                  showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                onClick={handlePlayerClick}
+                onTouchEnd={handlePlayerTouchEnd}
+              >
               {/* Top controls: Movie titles (Ẩn mượt mà khi chưa bấm phát) */}
               <div className={`flex justify-between items-start controls-prevent-click transition-all duration-300 ${
                 !isPlaying ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100'
@@ -562,6 +620,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
                 </div>
               </div>
+
+              {/* Screen Lock Button - Chỉ hiện khi ở chế độ màn hình ngang mobile */}
+              {isLandscapeFullscreen && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsLocked(true);
+                    setShowControls(false);
+                  }}
+                  className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all z-40"
+                  title="Khóa màn hình"
+                >
+                  <Unlock className="w-5 h-5 text-slate-200" />
+                </button>
+              )}
 
               {/* Large Play/Pause & Skip Controls in the Center */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6 sm:gap-8 z-10">
@@ -624,7 +697,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     max="0"
                     defaultValue="0"
                     onChange={handleSeekChange}
-                    className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-rose focus:outline-none"
+                    className="w-full h-1 rounded-lg appearance-none cursor-pointer accent-brand-rose focus:outline-none"
+                    style={{
+                      background: `linear-gradient(to right, #ef4444 0%, #ef4444 0%, #334155 0%, #334155 100%)`
+                    }}
                   />
                   <span ref={durationDisplayRef} className="text-xs text-slate-300 tabular-nums">
                     0:00
@@ -665,9 +741,25 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                       </button>
                     )}
 
-                    {/* Volume Bar slider - Ẩn trên mobile dọc để tránh đẩy nút Fullscreen ra ngoài */}
-                    <div className="hidden sm:flex items-center gap-2 group/volume ml-1 sm:ml-2">
-                      <Volume2 className="w-5 h-5 text-slate-300" />
+                    {/* Volume Bar slider - Hiển thị nút âm thanh trên mọi thiết bị, chỉ ẩn thanh slider ở mobile dọc */}
+                    <div className="flex items-center gap-2 group/volume ml-1 sm:ml-2">
+                      {volume === 0 ? (
+                        <button
+                          onClick={toggleMute}
+                          className="text-brand-rose hover:text-white cursor-pointer transition-colors"
+                          title="Bật tiếng"
+                        >
+                          <VolumeX className="w-5 h-5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={toggleMute}
+                          className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                          title="Tắt tiếng"
+                        >
+                          <Volume2 className="w-5 h-5" />
+                        </button>
+                      )}
                       <input
                         type="range"
                         min="0"
@@ -675,7 +767,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                         step="0.05"
                         value={volume}
                         onChange={handleVolumeChange}
-                        className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-white"
+                        className="hidden sm:block w-16 h-1 rounded-lg appearance-none cursor-pointer focus:outline-none"
+                        style={{
+                          background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${volume * 100}%, #334155 ${volume * 100}%, #334155 100%)`
+                        }}
                       />
                     </div>
                   </div>
@@ -701,8 +796,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
         {/* Play Embed Iframe Mode */}
         {(playMode === 'embed' || !activeEpisode.link_m3u8) && (
