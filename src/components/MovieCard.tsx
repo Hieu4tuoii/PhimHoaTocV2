@@ -10,7 +10,7 @@ interface MovieCardProps {
   movie: MovieShort;
 }
 
-export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
+const MovieCardInner: React.FC<MovieCardProps> = ({ movie }) => {
   const [imgSrc, setImgSrc] = useState<string>(() => getImageUrl(movie.poster_url || movie.thumb_url));
 
   // Performance: useCallback to stabilize image error handler reference
@@ -103,3 +103,5 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
     </Link>
   );
 };
+
+export const MovieCard = React.memo(MovieCardInner);

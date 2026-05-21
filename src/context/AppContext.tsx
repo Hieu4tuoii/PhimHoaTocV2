@@ -66,6 +66,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const watchlistWriteTimerRef = useRef<NodeJS.Timeout | null>(null);
   const historyWriteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Performance: Debounced state sync — avoids re-rendering entire tree on every progress save
+  const historyFlushTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const historyDirtyRef = useRef(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) 
@@ -212,24 +216,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 500);
   }, [watchlist, isLoaded]);
 
-  // Performance: Debounced localStorage write for history (2s delay — high-frequency updates)
+  // Performance: Persist history to localStorage from ref (not state) to avoid coupling with re-renders
+  const persistHistoryToStorage = useCallback(() => {
+    try {
+      localStorage.setItem('phimhoatoc_history', JSON.stringify(historyRef.current));
+    } catch (e) {
+      console.error('Error writing history to LocalStorage:', e);
+    }
+  }, []);
+
+  // Performance: Flush ref data into state (triggers re-render) — only when truly needed
+  const flushHistoryToState = useCallback(() => {
+    if (!historyDirtyRef.current) return;
+    historyDirtyRef.current = false;
+    setHistory([...historyRef.current]);
+    persistHistoryToStorage();
+  }, [persistHistoryToStorage]);
+
+  // Flush history on page leave / tab switch to prevent data loss
   useEffect(() => {
-    if (!isLoaded) return;
-    if (historyWriteTimerRef.current) clearTimeout(historyWriteTimerRef.current);
-    historyWriteTimerRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem('phimhoatoc_history', JSON.stringify(history));
-      } catch (e) {
-        console.error('Error writing history to LocalStorage:', e);
+    const handleBeforeUnload = () => {
+      if (historyDirtyRef.current) {
+        persistHistoryToStorage();
       }
-    }, 2000);
-  }, [history, isLoaded]);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && historyDirtyRef.current) {
+        persistHistoryToStorage();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // Flush on unmount
+      if (historyDirtyRef.current) {
+        persistHistoryToStorage();
+      }
+    };
+  }, [persistHistoryToStorage]);
 
   // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
       if (watchlistWriteTimerRef.current) clearTimeout(watchlistWriteTimerRef.current);
       if (historyWriteTimerRef.current) clearTimeout(historyWriteTimerRef.current);
+      if (historyFlushTimerRef.current) clearTimeout(historyFlushTimerRef.current);
     };
   }, []);
 
@@ -250,6 +283,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [watchlist]);
 
   // Watch history methods — wrapped with useCallback
+  // Performance: Updates ref only (no re-render), debounces state sync to every 30s
   const saveWatchProgress = useCallback((
     slug: string,
     movieName: string,
@@ -261,25 +295,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     if (duration <= 0) return;
     
-    setHistory((prev) => {
-      const filtered = prev.filter((item) => !(item.slug === slug && item.episodeSlug === episodeSlug));
-      const newItem: WatchHistoryItem = {
-        slug,
-        name: movieName,
-        thumb_url: movieThumb,
-        episodeSlug,
-        episodeName,
-        currentTime: Math.floor(currentTime),
-        duration: Math.floor(duration),
-        updatedAt: Date.now(),
-      };
-      
-      // Keep only unique movies in main history view by filtering out older progress of the same movie
-      // But we still want to keep the most recent progress
-      const movieFiltered = filtered.filter(item => item.slug !== slug);
-      return [newItem, ...movieFiltered].slice(0, 50); // limit to 50 items
-    });
-  }, []);
+    // Update ref directly — no re-render
+    const prev = historyRef.current;
+    const filtered = prev.filter((item) => !(item.slug === slug && item.episodeSlug === episodeSlug));
+    const newItem: WatchHistoryItem = {
+      slug,
+      name: movieName,
+      thumb_url: movieThumb,
+      episodeSlug,
+      episodeName,
+      currentTime: Math.floor(currentTime),
+      duration: Math.floor(duration),
+      updatedAt: Date.now(),
+    };
+    
+    // Keep only unique movies in main history view
+    const movieFiltered = filtered.filter(item => item.slug !== slug);
+    historyRef.current = [newItem, ...movieFiltered].slice(0, 50);
+    historyDirtyRef.current = true;
+
+    // Debounced localStorage persist (2s)
+    if (historyWriteTimerRef.current) clearTimeout(historyWriteTimerRef.current);
+    historyWriteTimerRef.current = setTimeout(() => {
+      persistHistoryToStorage();
+    }, 2000);
+
+    // Debounced state sync (30s) — only for UI that reads history from state (e.g. /lich-su page)
+    if (historyFlushTimerRef.current) clearTimeout(historyFlushTimerRef.current);
+    historyFlushTimerRef.current = setTimeout(() => {
+      flushHistoryToState();
+    }, 30000);
+  }, [persistHistoryToStorage, flushHistoryToState]);
 
   // Performance: Read from ref instead of state for high-frequency access
   const getWatchProgress = useCallback((slug: string, episodeSlug: string) => {
@@ -326,7 +372,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     installApp,
   }), [
     watchlist,
-    history,
+    history, // state only syncs every 30s via flushHistoryToState (not 5s like before)
     isCinemaMode,
     addToWatchlist,
     removeFromWatchlist,

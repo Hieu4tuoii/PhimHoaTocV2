@@ -83,9 +83,10 @@ a:focus {
 /* Custom Utility Classes */
 .glass-panel {
   background: rgba(20, 20, 20, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  will-change: backdrop-filter;
 }
 
 .text-gradient {
@@ -170,6 +171,12 @@ a:focus {
   border: none !important;
   width: 100vw !important;
   height: 100vh !important;
+}
+
+/* Performance: Isolate player paint scope from rest of page */
+.custom-player-container {
+  contain: layout style;
+  will-change: transform;
 }
 
 /* Tăng kích thước nút bấm trong player và tối ưu hóa phản hồi chạm trên mobile touch */

@@ -18,7 +18,7 @@ export const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-slate-950/80 border-t border-white/10 backdrop-blur-xl pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.5)]">
+    <div className="fixed bottom-0 inset-x-0 z-50 lg:hidden bg-slate-950/92 border-t border-white/10 backdrop-blur-md pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.5)]">
       <div className="flex items-center justify-around h-16 max-w-md mx-auto px-2">
         {navItems.map((item) => {
           // So sánh khớp active đường dẫn
