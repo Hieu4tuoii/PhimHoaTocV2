@@ -608,7 +608,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       {/* 2. CINEMA PLAYER CONTAINER */}
       <div 
         ref={playerContainerRef}
-        className={`custom-player-container relative aspect-video w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full bg-black rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-800/80 shadow-2xl z-40 transition-shadow duration-500 ${
+        className={`custom-player-container relative aspect-video w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full bg-black rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-800/80 shadow-2xl z-40 transition-[box-shadow,transform] duration-500 ${
           isCinemaMode 
             ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
             : 'shadow-black/60'
