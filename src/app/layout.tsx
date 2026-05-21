@@ -12,9 +12,9 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'PhimHoaToc - Website Xem Phim Cao Cấp Trực Tuyến Hàng Đầu',
+  title: 'Phim Hỏa Tốc - Website Xem Phim Cao Cấp Trực Tuyến Hàng Đầu',
   description: 'Trang web xem phim trực tuyến miễn phí, chất lượng cao HD Vietsub. Cập nhật nhanh nhất các bộ phim lẻ, phim bộ, hoạt hình anime, và TV shows mới nhất.',
-  keywords: 'xem phim, phim online, phim vietsub, phim hot, phim hay, phimhoatoc, phim thuyet minh',
+  keywords: 'xem phim, phim online, phim vietsub, phim hot, phim hay, phim hoa toc, phim hoatoc, phim thuyet minh',
 };
 
 export default function RootLayout({

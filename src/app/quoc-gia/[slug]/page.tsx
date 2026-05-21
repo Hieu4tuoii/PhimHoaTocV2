@@ -19,8 +19,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const countryName = country ? country.name : slug;
 
   return {
-    title: `Phim ${countryName} Hay Nhất 2026 | Xem Phim ${countryName} Full HD - PhimHoaToc`,
-    description: `Tuyển tập danh sách phim ${countryName} mới nhất, phim truyền hình & chiếu rạp ${countryName} hay nhất được cập nhật liên tục với chất lượng Full HD, vietsub thuyết minh cực mượt trên PhimHoaToc.`,
+    title: `Phim ${countryName} Hay Nhất 2026 | Xem Phim ${countryName} Full HD - Phim Hỏa Tốc`,
+    description: `Tuyển tập danh sách phim ${countryName} mới nhất, phim truyền hình & chiếu rạp ${countryName} hay nhất được cập nhật liên tục với chất lượng Full HD, vietsub thuyết minh cực mượt trên Phim Hỏa Tốc.`,
   };
 }
 

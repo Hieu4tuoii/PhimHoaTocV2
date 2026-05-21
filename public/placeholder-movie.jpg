@@ -13,6 +13,6 @@
     <circle cx="20" cy="22" r="4" fill="url(#grad)" />
     <circle cx="38" cy="22" r="4" fill="url(#grad)" />
   </g>
-  <text x="50%" y="270" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="900" letter-spacing="2" text-anchor="middle">PHIMHOATOC</text>
+  <text x="50%" y="270" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="900" letter-spacing="2" text-anchor="middle">PHIM HỎA TỐC</text>
   <text x="50%" y="300" fill="#A3A3A3" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" text-anchor="middle">Hình ảnh đang tải...</text>
 </svg>

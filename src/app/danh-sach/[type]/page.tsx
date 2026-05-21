@@ -36,7 +36,7 @@ const TYPE_CONFIG: Record<string, { title: string; desc: string }> = {
   },
   'phim-moi-cap-nhat': {
     title: 'Phim Mới Cập Nhật',
-    desc: 'Danh sách các bộ phim mới nhất vừa được cập nhật liên tục từng giờ trên hệ thống PhimHoaToc.',
+    desc: 'Danh sách các bộ phim mới nhất vừa được cập nhật liên tục từng giờ trên hệ thống Phim Hỏa Tốc.',
   },
 };
 

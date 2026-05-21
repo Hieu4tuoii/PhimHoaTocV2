@@ -17,7 +17,7 @@ export const Footer: React.FC = () => {
                 <Play className="w-4.5 h-4.5 text-white fill-white ml-0.5" />
               </div>
               <span className="text-lg font-black tracking-wider text-gradient">
-                PHIMHOATOC
+                PHIM HỎA TỐC
               </span>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
@@ -97,7 +97,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom copyright info */}
         <div className="border-t border-slate-800/50 mt-12 pt-6 flex flex-col md:flex-row items-center justify-between text-xs gap-4">
-          <p>© {new Date().getFullYear()} PhimHoaToc. Tất cả các quyền được bảo lưu.</p>
+          <p>© {new Date().getFullYear()} Phim Hỏa Tốc. Tất cả các quyền được bảo lưu.</p>
           <p className="flex items-center gap-1 text-slate-500">
             Made with <Heart className="w-3 h-3 text-brand-rose fill-brand-rose" /> for Movie Lovers
           </p>

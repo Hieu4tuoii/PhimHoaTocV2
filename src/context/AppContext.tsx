@@ -362,7 +362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   <Play className="w-6 h-6 text-white fill-white ml-0.5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base sm:text-lg text-white">Tải ứng dụng PhimHoaToc</h3>
+                  <h3 className="font-extrabold text-base sm:text-lg text-white">Tải ứng dụng Phim Hỏa Tốc</h3>
                   <p className="text-[10px] text-brand-cyan font-black tracking-widest uppercase">Web-App Premium</p>
                 </div>
               </div>
@@ -377,7 +377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             {/* Body content */}
             <div className="space-y-4 text-xs sm:text-sm text-slate-350 leading-relaxed relative z-10">
               <p className="text-slate-300 font-semibold">
-                Cài đặt ứng dụng PhimHoaToc để có trải nghiệm xem phim siêu tốc độ, mượt mà không có thanh địa chỉ phiền toái.
+                Cài đặt ứng dụng Phim Hỏa Tốc để có trải nghiệm xem phim siêu tốc độ, mượt mà không có thanh địa chỉ phiền toái.
               </p>
 
               {/* Tab Switcher */}

@@ -113,7 +113,7 @@ export const Header: React.FC = () => {
               <Play className="w-5 h-5 text-white fill-white ml-0.5" />
             </div>
             <span className="text-xl sm:text-2xl font-black tracking-wider text-gradient">
-              PHIMHOATOC
+              PHIM HỎA TỐC
             </span>
           </Link>
 

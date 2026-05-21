@@ -33,8 +33,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   
   if (keyword) {
     return {
-      title: `Tìm Kiếm Phim "${keyword}" Trực Tuyến Hay Nhất 2026 - PhimHoaToc`,
-      description: `Kết quả tìm kiếm phim phù hợp với từ khóa "${keyword}". Xem phim online chất lượng cao Full HD Vietsub Thuyết Minh tốc độ cao không giật lag tại PhimHoaToc.`,
+      title: `Tìm Kiếm Phim "${keyword}" Trực Tuyến Hay Nhất 2026 - Phim Hỏa Tốc`,
+      description: `Kết quả tìm kiếm phim phù hợp với từ khóa "${keyword}". Xem phim online chất lượng cao Full HD Vietsub Thuyết Minh tốc độ cao không giật lag tại Phim Hỏa Tốc.`,
     };
   }
 
@@ -50,12 +50,12 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   if (params.year) filterTitle += ` Năm ${params.year}`;
 
   const title = filterTitle
-    ? `Duyệt Phim ${typeName}${filterTitle} Cực Hay 2026 - PhimHoaToc`
-    : `Tìm Kiếm & Khám Phá Điện Ảnh Thông Minh Netflix-Style - PhimHoaToc`;
+    ? `Duyệt Phim ${typeName}${filterTitle} Cực Hay 2026 - Phim Hỏa Tốc`
+    : `Tìm Kiếm & Khám Phá Điện Ảnh Thông Minh Netflix-Style - Phim Hỏa Tốc`;
 
   return {
     title,
-    description: `Trang tìm kiếm phim và lọc thông minh của PhimHoaToc. Nhập từ khóa hoặc sử dụng bộ lọc đa tiêu chí (thể loại, quốc gia, năm phát hành, loại phim) để khám phá ngay những bộ phim ưng ý nhất.`,
+    description: `Trang tìm kiếm phim và lọc thông minh của Phim Hỏa Tốc. Nhập từ khóa hoặc sử dụng bộ lọc đa tiêu chí (thể loại, quốc gia, năm phát hành, loại phim) để khám phá ngay những bộ phim ưng ý nhất.`,
   };
 }
 

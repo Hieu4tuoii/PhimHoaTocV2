@@ -19,8 +19,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const genreName = genre ? genre.name : slug;
 
   return {
-    title: `Phim ${genreName} Hay Nhất 2026 | Xem Phim ${genreName} Full HD - PhimHoaToc`,
-    description: `Tuyển tập danh sách phim ${genreName} mới nhất, phim ${genreName} chiếu rạp hay nhất được cập nhật liên tục với chất lượng Full HD, vietsub thuyết minh cực mượt trên PhimHoaToc.`,
+    title: `Phim ${genreName} Hay Nhất 2026 | Xem Phim ${genreName} Full HD - Phim Hỏa Tốc`,
+    description: `Tuyển tập danh sách phim ${genreName} mới nhất, phim ${genreName} chiếu rạp hay nhất được cập nhật liên tục với chất lượng Full HD, vietsub thuyết minh cực mượt trên Phim Hỏa Tốc.`,
   };
 }
 
