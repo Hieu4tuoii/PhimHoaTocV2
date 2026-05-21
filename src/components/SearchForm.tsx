@@ -141,7 +141,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
           onFocus={() => {
             if (keyword.trim().length >= 2) setShowDropdown(true);
           }}
-          className="w-full h-12 px-5 pl-12 pr-12 text-sm sm:text-base bg-white/3 hover:bg-white/5 focus:bg-slate-900/90 border border-white/5 focus:border-brand-violet rounded-2xl focus:outline-none focus:ring-1 focus:ring-brand-violet text-white transition-all duration-300 placeholder-slate-450 focus:shadow-neon"
+          className="w-full h-12 px-5 pl-12 pr-12 text-sm sm:text-base bg-white/3 hover:bg-white/5 focus:bg-slate-900 border border-white/5 focus:border-brand-violet rounded-2xl focus:outline-none focus:ring-1 focus:ring-brand-violet text-white transition-all duration-300 placeholder-slate-450 focus:shadow-neon"
         />
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand-cyan transition-colors" />
         
@@ -161,22 +161,22 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
         </div>
       </form>
 
-      {/* Dropdown hiển thị gợi ý tìm kiếm tức thì */}
+      {/* Dropdown hiển thị gợi ý tìm kiếm tức thì - Đục hoàn toàn để hiển thị sắc nét trên cả PC & Mobile */}
       {showDropdown && (
-        <div className="absolute top-14 left-0 right-0 glass-panel rounded-2xl overflow-hidden shadow-2xl z-50 border border-slate-800 animate-slide-up">
+        <div className="absolute top-14 left-0 right-0 bg-navy-panel rounded-2xl overflow-hidden shadow-2xl z-50 border border-slate-800 animate-slide-up">
           {isSearching ? (
             <div className="p-4 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 text-brand-cyan animate-spin" />
               Đang tìm kiếm...
             </div>
           ) : results.length > 0 ? (
-            <div className="flex flex-col divide-y divide-slate-800/50">
+            <div className="flex flex-col divide-y divide-slate-800">
               {results.map((movie) => (
                 <Link
                   key={movie._id}
                   href={`/phim/${movie.slug}`}
                   onClick={() => setShowDropdown(false)}
-                  className="flex items-center gap-3 p-3 hover:bg-slate-800/40 transition-colors duration-200"
+                  className="flex items-center gap-3 p-3 hover:bg-slate-800 transition-colors duration-200"
                 >
                   <div className="w-10 h-14 bg-slate-900 rounded-md overflow-hidden flex-shrink-0">
                     <img
@@ -209,7 +209,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="w-full py-2.5 bg-slate-800/30 text-center text-xs font-bold text-brand-cyan hover:text-brand-rose hover:bg-slate-800/50 transition-colors cursor-pointer"
+                className="w-full py-2.5 bg-slate-800 text-center text-xs font-bold text-brand-cyan hover:text-brand-rose hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Xem tất cả kết quả cho "{keyword}"
               </button>

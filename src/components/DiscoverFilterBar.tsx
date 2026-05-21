@@ -90,7 +90,7 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
   const hasActiveFilters = category || country || year || sortField !== 'modified' || type !== 'phim-le';
 
   return (
-    <div className="w-full bg-white/3 border border-white/5 p-5 sm:p-6 rounded-2xl backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/8">
+    <div className="w-full bg-navy-panel border border-white/5 p-5 sm:p-6 rounded-2xl shadow-2xl transition-all duration-300 hover:border-white/8">
       {/* Header của Bộ lọc */}
       <div className="flex items-center justify-between border-b border-white/5 pb-4">
         <div 
