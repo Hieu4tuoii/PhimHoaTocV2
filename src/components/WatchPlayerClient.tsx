@@ -386,6 +386,61 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
+  // Keyboard navigation shortcuts for PC (ArrowLeft/ArrowRight to seek, Space to play/pause)
+  useEffect(() => {
+    if (playMode !== 'hls' || isLocked) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Avoid triggering shortcuts if the user is typing in form inputs
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+         activeEl.tagName === 'TEXTAREA' ||
+         (activeEl instanceof HTMLElement && activeEl.isContentEditable))
+      ) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handleSkip(-10);
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (isPlaying) {
+          controlsTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+          }, 3000);
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleSkip(10);
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (isPlaying) {
+          controlsTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+          }, 3000);
+        }
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        togglePlay();
+        setShowControls(true);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (isPlaying) {
+          controlsTimeoutRef.current = setTimeout(() => {
+            setShowControls(false);
+          }, 3000);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [playMode, isLocked, isPlaying, handleSkip, togglePlay]);
+
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
   const handlePlayerTap = useCallback(() => {
     lastClickTimeRef.current = Date.now();
