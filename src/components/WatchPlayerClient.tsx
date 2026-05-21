@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock } from 'lucide-react';
+import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock, SkipForward, List, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { MovieDetail, MovieServer, EpisodeData } from '@/types';
 import Hls from 'hls.js';
@@ -36,6 +36,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const [isPipSupported, setIsPipSupported] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [showUnlockBtn, setShowUnlockBtn] = useState(false);
+  const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
 
   const unlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevVolumeRef = useRef(1);
@@ -119,7 +120,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     const handleFullscreenChange = () => {
       checkLandscapeFullscreen();
       if (!document.fullscreenElement) {
-        // User thoát fullscreen (Escape/Back) → unlock orientation
+        // User thoát fullscreen (Escape/Back) → unlock orientation và đóng drawer
+        setShowEpisodesDrawer(false);
         try {
           (screen.orientation as any).unlock();
         } catch {
@@ -611,14 +613,28 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 onClick={handlePlayerClick}
                 onTouchEnd={handlePlayerTouchEnd}
               >
-              {/* Top controls: Movie titles (Ẩn mượt mà khi chưa bấm phát) */}
-              <div className={`flex justify-between items-start controls-prevent-click transition-all duration-300 ${
+              {/* Top controls: Movie titles & Quick Episode list (Ẩn mượt mà khi chưa bấm phát) */}
+              <div className={`flex justify-between items-center controls-prevent-click transition-all duration-300 ${
                 !isPlaying ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100'
               }`}>
                 <div className="space-y-0.5">
                   <h3 className="font-bold text-base text-white">{movie.name}</h3>
                   <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
                 </div>
+
+                {isLandscapeFullscreen && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowEpisodesDrawer(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 flex items-center gap-2 text-xs font-bold text-slate-200 cursor-pointer active:scale-95 transition-all shadow-md"
+                    title="Danh sách tập"
+                  >
+                    <List className="w-4 h-4 text-slate-200" />
+                    <span>Chọn tập</span>
+                  </button>
+                )}
               </div>
 
               {/* Screen Lock Button - Chỉ hiện khi ở chế độ màn hình ngang mobile */}
@@ -741,6 +757,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                       </button>
                     )}
 
+                    {/* Quick Next Episode Button - Chuyển tập tiếp theo nhanh */}
+                    {nextEp && (
+                      <button
+                        onClick={() => {
+                          router.push(`/xem-phim/${movie.slug}/${nextEp.slug}`);
+                        }}
+                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors ml-0.5 active:scale-90 duration-100"
+                        title="Tập tiếp theo"
+                      >
+                        <SkipForward className="w-5 h-5" />
+                      </button>
+                    )}
+
                     {/* Volume Bar slider - Hiển thị nút âm thanh trên mọi thiết bị, chỉ ẩn thanh slider ở mobile dọc */}
                     <div className="flex items-center gap-2 group/volume ml-1 sm:ml-2">
                       {volume === 0 ? (
@@ -796,6 +825,72 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
               </div>
             </div>
+          )}
+
+          {/* Drawer danh sách tập phim trượt từ cạnh phải (Chỉ hiển thị khi xoay ngang fullscreen di động) */}
+          {isLandscapeFullscreen && (
+            <>
+              {/* Overlay mờ nền */}
+              <div 
+                className={`absolute inset-0 bg-black/60 z-[60] transition-opacity duration-300 ${
+                  showEpisodesDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                onClick={() => setShowEpisodesDrawer(false)}
+              />
+              
+              {/* Drawer Panel */}
+              <div 
+                className={`absolute top-0 right-0 h-full w-80 bg-slate-950/95 backdrop-blur-md border-l border-white/10 z-[70] flex flex-col p-6 shadow-2xl transition-transform duration-300 ease-out ${
+                  showEpisodesDrawer ? 'translate-x-0' : 'translate-x-full'
+                }`}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-shrink-0">
+                  <div className="space-y-1">
+                    <h4 className="font-black text-sm text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-1.5 h-4 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
+                      Danh sách tập
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-medium">Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowEpisodesDrawer(false)}
+                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer active:scale-95 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* Body: Episode Grid/List Scrollable */}
+                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
+                  {currentServerEpisodes.map((ep) => {
+                    const isCurrent = ep.slug === activeEpisode.slug;
+                    return (
+                      <button
+                        key={ep.slug}
+                        onClick={() => {
+                          setShowEpisodesDrawer(false);
+                          router.push(`/xem-phim/${movie.slug}/${ep.slug}`);
+                        }}
+                        className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between ${
+                          isCurrent
+                            ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
+                            : 'bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200'
+                        }`}
+                      >
+                        <span className="truncate pr-2">{ep.name}</span>
+                        {isCurrent && (
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan"></span>
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
