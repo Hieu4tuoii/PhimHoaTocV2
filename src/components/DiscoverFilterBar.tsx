@@ -50,6 +50,11 @@ export const DiscoverFilterBar: React.FC<DiscoverFilterBarProps> = ({
     setCountry(searchParams.get('country') || '');
     setYear(searchParams.get('year') || '');
     setSortField(searchParams.get('sort_field') || 'modified');
+
+    // Tự động thu gọn bộ lọc trên Mobile/Tablet khi tham số URL thay đổi (như khi nhấn Enter tìm kiếm hoặc áp dụng lọc)
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsCollapsed(true);
+    }
   }, [searchParams]);
 
   const handleApplyFilters = () => {
