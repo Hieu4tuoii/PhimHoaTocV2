@@ -30,6 +30,8 @@ export default async function HomePage() {
               src={getImageUrl(heroMovie.thumb_url || heroMovie.poster_url)}
               alt={heroMovie.name}
               className="w-full h-full object-cover scale-105 filter brightness-50 contrast-105"
+              fetchPriority="high"
+              decoding="async"
             />
             {/* Dark & Gradient overlays for movie theater vibe */}
             <div className="absolute inset-0 bg-gradient-to-t from-navy-dark via-navy-dark/40 to-transparent" />
@@ -115,7 +117,7 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-12 pb-8">
         
         {/* New Updates - Wrapped in Glass Panel */}
-        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/4 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="Mới Cập Nhật"
             movies={newUpdates.items}
@@ -133,7 +135,7 @@ export default async function HomePage() {
         </div>
 
         {/* Single Movies - Wrapped in Glass Panel */}
-        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/4 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="Phim Lẻ Hot"
             movies={singleMovies.items}
@@ -151,7 +153,7 @@ export default async function HomePage() {
         </div>
 
         {/* TV Shows - Wrapped in Glass Panel */}
-        <div className="bg-transparent sm:bg-white/3 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl backdrop-blur-none sm:backdrop-blur-sm shadow-none sm:shadow-xl shadow-black/10">
+        <div className="bg-transparent sm:bg-white/4 border-0 sm:border border-white/5 p-0 sm:p-8 rounded-none sm:rounded-3xl shadow-none sm:shadow-xl shadow-black/10">
           <MovieSlider
             title="TV Shows Đặc Sắc"
             movies={tvShows.items}

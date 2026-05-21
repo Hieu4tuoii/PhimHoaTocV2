@@ -56,7 +56,7 @@ export default async function MovieDetailPage({ params }: PageProps) {
         <MoviePoster
           src={getImageUrl(movie.thumb_url || movie.poster_url)}
           alt={movie.name}
-          className="w-full h-full object-cover filter blur-[80px] brightness-[0.22] scale-110"
+          className="w-full h-full object-cover filter blur-[40px] brightness-[0.22] scale-110"
         />
         {/* Lớp phủ gradient chuyển tiếp mượt mà sang tông đen tối rạp chiếu phim */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-navy-dark/40 to-navy-dark" />

@@ -334,8 +334,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const getMovieLastWatchedEpisode = useCallback((slug: string) => {
-    return history.find((item) => item.slug === slug);
-  }, [history]);
+    return historyRef.current.find((item) => item.slug === slug);
+  }, []);
 
   // Cinema Mode methods
   const toggleCinemaMode = useCallback(() => {

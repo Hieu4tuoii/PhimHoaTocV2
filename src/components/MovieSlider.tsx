@@ -44,7 +44,7 @@ export const MovieSlider: React.FC<MovieSliderProps> = ({ title, movies, viewAll
       checkScroll();
       
       // Also check on resize
-      window.addEventListener('resize', throttledCheckScroll);
+      window.addEventListener('resize', throttledCheckScroll, { passive: true });
     }
     return () => {
       if (slider) {

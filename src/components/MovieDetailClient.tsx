@@ -34,7 +34,7 @@ export const MovieDetailClient: React.FC<MovieDetailClientProps> = ({ movie, epi
     if (watchedInfo) {
       setLastWatched(watchedInfo);
     }
-  }, [watchlist, history, movie.slug]);
+  }, [watchlist, movie.slug, isInWatchlist, getMovieLastWatchedEpisode]);
 
   const handleFavoriteToggle = () => {
     const movieShort: MovieShort = {

@@ -137,7 +137,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
 
     // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không
     setIsPipSupported(
