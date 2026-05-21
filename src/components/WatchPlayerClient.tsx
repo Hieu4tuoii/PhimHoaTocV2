@@ -654,19 +654,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               )}
 
               {/* Large Play/Pause & Skip Controls in the Center */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6 sm:gap-8 z-10">
-                {isLandscapeFullscreen && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSkip(-10);
-                    }}
-                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
-                    title="Lùi 10 giây"
-                  >
-                    <RotateCcw className="w-5 h-5 text-white" />
-                  </button>
-                )}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-5 sm:gap-8 z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSkip(-10);
+                  }}
+                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                  title="Lùi 10 giây"
+                >
+                  <RotateCcw className="w-5 h-5 text-white" />
+                </button>
 
                 <button
                   onClick={(e) => {
@@ -683,18 +681,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   )}
                 </button>
 
-                {isLandscapeFullscreen && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSkip(10);
-                    }}
-                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
-                    title="Tua 10 giây"
-                  >
-                    <RotateCw className="w-5 h-5 text-white" />
-                  </button>
-                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSkip(10);
+                  }}
+                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                  title="Tua 10 giây"
+                >
+                  <RotateCw className="w-5 h-5 text-white" />
+                </button>
               </div>
 
               {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
@@ -728,17 +724,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 {/* Controls action buttons row */}
                 <div className="flex justify-between items-center text-white">
                   <div className="flex items-center gap-3 sm:gap-5">
-                    {/* Backward 10s Button */}
-                    {!isLandscapeFullscreen && (
-                      <button
-                        onClick={() => handleSkip(-10)}
-                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
-                        title="Lùi 10 giây"
-                      >
-                        <RotateCcw className="w-5 h-5" />
-                      </button>
-                    )}
-
                     {/* Play/Pause Button */}
                     <button onClick={togglePlay} className="hover:text-brand-rose cursor-pointer transition-colors" title={isPlaying ? "Tạm dừng" : "Phát video"}>
                       {isPlaying ? (
@@ -747,17 +732,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                         <Play className="w-5.5 h-5.5 fill-white" />
                       )}
                     </button>
-
-                    {/* Forward 10s Button */}
-                    {!isLandscapeFullscreen && (
-                      <button
-                        onClick={() => handleSkip(10)}
-                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
-                        title="Tua 10 giây"
-                      >
-                        <RotateCw className="w-5 h-5" />
-                      </button>
-                    )}
 
                     {/* Quick Next Episode Button - Chuyển tập tiếp theo nhanh */}
                     {nextEp && (
