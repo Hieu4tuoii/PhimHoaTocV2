@@ -226,3 +226,58 @@ a:focus {
   }
 }
 
+/* Custom slider styles for player range inputs (progress & volume) */
+.player-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 9999px;
+  background: #334155;
+  outline: none;
+  transition: height 0.1s ease;
+}
+
+.player-slider:hover {
+  height: 6px;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge, Opera) */
+.player-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #E50914;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 8px rgba(229, 9, 20, 0.5);
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+.player-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+  background: #ffffff;
+  border: 2px solid #E50914;
+}
+
+/* Mozilla Firefox */
+.player-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #E50914;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 8px rgba(229, 9, 20, 0.5);
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+.player-slider:hover::-moz-range-thumb {
+  transform: scale(1.2);
+  background: #ffffff;
+  border: 2px solid #E50914;
+}
+
+

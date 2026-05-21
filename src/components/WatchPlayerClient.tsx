@@ -190,9 +190,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (progressBarRef.current) {
       progressBarRef.current.value = String(time);
       progressBarRef.current.max = String(dur || 0);
-      // Tô màu đỏ phần progress trượt qua
+      // Tô màu đỏ phần progress trượt qua theo đúng mã màu thiết kế #E50914
       const pct = dur > 0 ? (time / dur) * 100 : 0;
-      progressBarRef.current.style.background = `linear-gradient(to right, #ef4444 0%, #ef4444 ${pct}%, #334155 ${pct}%, #334155 100%)`;
+      progressBarRef.current.style.background = `linear-gradient(to right, #E50914 0%, #E50914 ${pct}%, #334155 ${pct}%, #334155 100%)`;
+      progressBarRef.current.style.accentColor = '#E50914';
     }
     if (currentTimeDisplayRef.current) {
       currentTimeDisplayRef.current.textContent = formatTime(time);
@@ -713,9 +714,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     max="0"
                     defaultValue="0"
                     onChange={handleSeekChange}
-                    className="w-full h-1 rounded-lg appearance-none cursor-pointer accent-brand-rose focus:outline-none"
+                    className="player-slider w-full cursor-pointer focus:outline-none"
                     style={{
-                      background: `linear-gradient(to right, #ef4444 0%, #ef4444 0%, #334155 0%, #334155 100%)`
+                      background: `linear-gradient(to right, #E50914 0%, #E50914 0%, #334155 0%, #334155 100%)`,
+                      accentColor: '#E50914'
                     }}
                   />
                   <span ref={durationDisplayRef} className="text-xs text-slate-300 tabular-nums">
@@ -796,9 +798,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                         step="0.05"
                         value={volume}
                         onChange={handleVolumeChange}
-                        className="hidden sm:block w-16 h-1 rounded-lg appearance-none cursor-pointer focus:outline-none"
+                        className="player-slider hidden sm:block w-16 cursor-pointer focus:outline-none"
                         style={{
-                          background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${volume * 100}%, #334155 ${volume * 100}%, #334155 100%)`
+                          background: `linear-gradient(to right, #E50914 0%, #E50914 ${volume * 100}%, #334155 ${volume * 100}%, #334155 100%)`,
+                          accentColor: '#E50914'
                         }}
                       />
                     </div>
@@ -835,7 +838,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 className={`absolute inset-0 bg-black/60 z-[60] transition-opacity duration-300 ${
                   showEpisodesDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
-                onClick={() => setShowEpisodesDrawer(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowEpisodesDrawer(false);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  setShowEpisodesDrawer(false);
+                }}
               />
               
               {/* Drawer Panel */}
@@ -843,6 +853,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 className={`absolute top-0 right-0 h-full w-80 bg-slate-950/95 backdrop-blur-md border-l border-white/10 z-[70] flex flex-col p-6 shadow-2xl transition-transform duration-300 ease-out ${
                   showEpisodesDrawer ? 'translate-x-0' : 'translate-x-full'
                 }`}
+                onClick={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
               >
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-shrink-0">
