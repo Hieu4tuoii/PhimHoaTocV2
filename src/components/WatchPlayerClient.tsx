@@ -633,7 +633,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
                 {/* Controls action buttons row */}
                 <div className="flex justify-between items-center text-white">
-                  <div className="flex items-center gap-5">
+                  <div className="flex items-center gap-3 sm:gap-5">
                     {/* Backward 10s Button */}
                     {!isLandscapeFullscreen && (
                       <button
@@ -665,8 +665,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                       </button>
                     )}
 
-                    {/* Volume Bar slider */}
-                    <div className="flex items-center gap-2 group/volume ml-2">
+                    {/* Volume Bar slider - Ẩn trên mobile dọc để tránh đẩy nút Fullscreen ra ngoài */}
+                    <div className="hidden sm:flex items-center gap-2 group/volume ml-1 sm:ml-2">
                       <Volume2 className="w-5 h-5 text-slate-300" />
                       <input
                         type="range"
@@ -680,7 +680,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2.5 sm:gap-4">
                     {/* Picture-in-Picture Button */}
                     {isPipSupported && playMode === 'hls' && (
                       <button
