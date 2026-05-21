@@ -8,6 +8,15 @@ import { useApp } from '@/context/AppContext';
 import { MovieDetail, MovieServer, EpisodeData } from '@/types';
 import Hls from 'hls.js';
 
+// SVG Icon tùy chỉnh cho Picture-in-Picture
+const PipIcon: React.FC = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+    <path d="M8 4.5v5H3v-5z" />
+    <path d="M2 12v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-8" />
+    <path d="M13 11v7h8v-7z" fill="currentColor" className="text-brand-rose" />
+  </svg>
+);
+
 interface WatchPlayerClientProps {
   movie: MovieDetail;
   currentEpisode: EpisodeData;
@@ -21,6 +30,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Player Configuration States
   const [selectedServerIndex, setSelectedServerIndex] = useState(0); // Index of episodes server list
   const [playMode, setPlayMode] = useState<'hls' | 'embed'>('hls'); // default HLS player if supported
+  
+  // Custom States cho các nút điều khiển mới
+  const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
+  const [isPipSupported, setIsPipSupported] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -90,9 +103,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, [isCinemaMode]);
 
-  // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset
+  // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset & PiP check
   useEffect(() => {
+    const checkLandscapeFullscreen = () => {
+      const isFS = !!document.fullscreenElement;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      setIsLandscapeFullscreen(isFS && isLandscape);
+    };
+
     const handleFullscreenChange = () => {
+      checkLandscapeFullscreen();
       if (!document.fullscreenElement) {
         // User thoát fullscreen (Escape/Back) → unlock orientation
         try {
@@ -103,10 +123,25 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       }
     };
 
+    const handleResize = () => {
+      if (document.fullscreenElement) {
+        checkLandscapeFullscreen();
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('resize', handleResize);
+
+    // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không
+    setIsPipSupported(
+      typeof document !== 'undefined' && 
+      document.pictureInPictureEnabled && 
+      !!videoRef.current
+    );
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('resize', handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
@@ -439,6 +474,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
+  const togglePictureInPicture = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.error('Picture-in-Picture error:', err);
+    }
+  }, []);
+
   // Performance: Throttled mouse move handler (max 1 call per 300ms)
   const handleMouseMove = useCallback(() => {
     // Bỏ qua trên touch device — đã có touch handler riêng
@@ -513,21 +563,49 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 </div>
               </div>
 
-              {/* Large Play/Pause Icon in the Center */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50 active:scale-95 duration-200"
-                title={isPlaying ? "Tạm dừng" : "Phát video"}
-              >
-                {isPlaying ? (
-                  <Pause className="w-7 h-7 text-white fill-white" />
-                ) : (
-                  <Play className="w-7 h-7 text-white fill-white ml-1" />
+              {/* Large Play/Pause & Skip Controls in the Center */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6 sm:gap-8 z-10">
+                {isLandscapeFullscreen && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSkip(-10);
+                    }}
+                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                    title="Lùi 10 giây"
+                  >
+                    <RotateCcw className="w-5 h-5 text-white" />
+                  </button>
                 )}
-              </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePlay();
+                  }}
+                  className="w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50 active:scale-95 duration-200"
+                  title={isPlaying ? "Tạm dừng" : "Phát video"}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-7 h-7 text-white fill-white" />
+                  ) : (
+                    <Play className="w-7 h-7 text-white fill-white ml-1" />
+                  )}
+                </button>
+
+                {isLandscapeFullscreen && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSkip(10);
+                    }}
+                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                    title="Tua 10 giây"
+                  >
+                    <RotateCw className="w-5 h-5 text-white" />
+                  </button>
+                )}
+              </div>
 
               {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
               <div className={`space-y-3 w-full controls-prevent-click transition-all duration-300 ${
@@ -557,13 +635,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 <div className="flex justify-between items-center text-white">
                   <div className="flex items-center gap-5">
                     {/* Backward 10s Button */}
-                    <button
-                      onClick={() => handleSkip(-10)}
-                      className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
-                      title="Lùi 10 giây"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                    </button>
+                    {!isLandscapeFullscreen && (
+                      <button
+                        onClick={() => handleSkip(-10)}
+                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                        title="Lùi 10 giây"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                      </button>
+                    )}
 
                     {/* Play/Pause Button */}
                     <button onClick={togglePlay} className="hover:text-brand-rose cursor-pointer transition-colors" title={isPlaying ? "Tạm dừng" : "Phát video"}>
@@ -575,13 +655,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     </button>
 
                     {/* Forward 10s Button */}
-                    <button
-                      onClick={() => handleSkip(10)}
-                      className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
-                      title="Tua 10 giây"
-                    >
-                      <RotateCw className="w-5 h-5" />
-                    </button>
+                    {!isLandscapeFullscreen && (
+                      <button
+                        onClick={() => handleSkip(10)}
+                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                        title="Tua 10 giây"
+                      >
+                        <RotateCw className="w-5 h-5" />
+                      </button>
+                    )}
 
                     {/* Volume Bar slider */}
                     <div className="flex items-center gap-2 group/volume ml-2">
@@ -599,6 +681,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   </div>
 
                   <div className="flex items-center gap-4">
+                    {/* Picture-in-Picture Button */}
+                    {isPipSupported && playMode === 'hls' && (
+                      <button
+                        onClick={togglePictureInPicture}
+                        className="hover:text-brand-rose text-slate-300 cursor-pointer transition-colors"
+                        title="Xem dạng cửa sổ nổi"
+                      >
+                        <PipIcon />
+                      </button>
+                    )}
+
                     {/* Fullscreen Button */}
                     <button onClick={toggleFullscreen} className="hover:text-brand-cyan cursor-pointer">
                       <Maximize className="w-5 h-5" />

@@ -36,7 +36,7 @@ export async function getNewUpdates(page: number = 1): Promise<MovieListResponse
 export async function getMovieDetail(slug: string): Promise<MovieDetailResponse | null> {
   try {
     const res = await fetch(`${BASE_URL}/phim/${slug}`, {
-      next: { revalidate: 3600 }, // Cache response for 1 hour
+      next: { revalidate: 600 }, // Cache response for 1 hour
     });
     if (!res.ok) {
       console.error(`Failed to fetch movie detail for slug ${slug}: status`, res.status);
