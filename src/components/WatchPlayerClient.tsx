@@ -35,10 +35,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
   const [isPipSupported, setIsPipSupported] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [showUnlockBtn, setShowUnlockBtn] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
 
-  const unlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // In-place episode switch: khi đang fullscreen, đổi tập mà không chuyển trang
+  const [overrideEpisode, setOverrideEpisode] = useState<EpisodeData | null>(null);
   const prevVolumeRef = useRef(1);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,7 +69,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
   
   // Find the episode matching the slug of currentEpisode dynamically
-  const activeEpisode = currentServerEpisodes.find((ep) => ep.slug === currentEpisode.slug) || currentEpisode;
+  // Ưu tiên overrideEpisode nếu đang fullscreen in-place switch
+  const baseEpisode = currentServerEpisodes.find((ep) => ep.slug === currentEpisode.slug) || currentEpisode;
+  const activeEpisode = overrideEpisode || baseEpisode;
   
   const currentEpIndex = currentServerEpisodes.findIndex((ep) => ep.slug === activeEpisode.slug);
   
@@ -128,11 +130,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (!document.fullscreenElement) {
         // User thoát fullscreen (Escape/Back) → unlock orientation và đóng drawer
         setShowEpisodesDrawer(false);
+        setIsLocked(false);
         try {
           (screen.orientation as any).unlock();
         } catch {
           // Không hỗ trợ — bỏ qua
         }
+        // Sync URL nếu đã đổi tập in-place khi fullscreen
+        setOverrideEpisode((prev) => {
+          if (prev && prev.slug !== currentEpisode.slug) {
+            router.replace(`/xem-phim/${movie.slug}/${prev.slug}`, { scroll: false });
+          }
+          return null;
+        });
       }
     };
 
@@ -157,7 +167,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       window.removeEventListener('resize', handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
-      if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
     };
   }, []);
 
@@ -638,36 +647,47 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               playsInline
             />
 
-            {/* Khóa màn hình Overlay */}
+            {/* Khóa màn hình Overlay — tap để toggle hiển thị nút unlock giống controls */}
             {isLocked && isLandscapeFullscreen && (
               <div 
-                className="absolute inset-0 z-50 flex items-center justify-start p-6 bg-black/10"
+                className="absolute inset-0 z-50 flex items-center justify-start p-6"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowUnlockBtn(true);
-                  if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
-                  unlockTimeoutRef.current = setTimeout(() => setShowUnlockBtn(false), 3000);
+                  setShowControls(prev => {
+                    const next = !prev;
+                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                    if (next && isPlaying) {
+                      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+                    }
+                    return next;
+                  });
                 }}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
-                  setShowUnlockBtn(true);
-                  if (unlockTimeoutRef.current) clearTimeout(unlockTimeoutRef.current);
-                  unlockTimeoutRef.current = setTimeout(() => setShowUnlockBtn(false), 3000);
+                  e.preventDefault();
+                  setShowControls(prev => {
+                    const next = !prev;
+                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                    if (next && isPlaying) {
+                      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+                    }
+                    return next;
+                  });
                 }}
               >
-                {(showUnlockBtn || !isPlaying) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsLocked(false);
-                      setShowControls(true);
-                    }}
-                    className="w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg animate-pulse transition-all"
-                    title="Mở khóa màn hình"
-                  >
-                    <Lock className="w-5 h-5 text-white" />
-                  </button>
-                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsLocked(false);
+                    setShowControls(true);
+                  }}
+                  className={`w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg transition-all duration-300 ${
+                    showControls ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
+                  }`}
+                  title="Mở khóa màn hình"
+                >
+                  <Lock className="w-5 h-5 text-white" />
+                </button>
               </div>
             )}
 
@@ -799,7 +819,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     {nextEp && (
                       <button
                         onClick={() => {
-                          router.push(`/xem-phim/${movie.slug}/${nextEp.slug}`);
+                          if (isLandscapeFullscreen) {
+                            // In-place switch: đổi tập mà không thoát fullscreen
+                            setOverrideEpisode(nextEp);
+                          } else {
+                            router.push(`/xem-phim/${movie.slug}/${nextEp.slug}`);
+                          }
                         }}
                         className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors ml-0.5 active:scale-90 duration-100"
                         title="Tập tiếp theo"
@@ -918,7 +943,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                         key={ep.slug}
                         onClick={() => {
                           setShowEpisodesDrawer(false);
-                          router.push(`/xem-phim/${movie.slug}/${ep.slug}`);
+                          // In-place switch: đổi tập ngay mà không thoát fullscreen
+                          setOverrideEpisode(ep);
                         }}
                         className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between ${
                           isCurrent
@@ -945,7 +971,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
         {/* Play Embed Iframe Mode */}
         {(playMode === 'embed' || !activeEpisode.link_m3u8) && (
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-full group/embed">
             <iframe
               src={activeEpisode.link_embed}
               className="w-full h-full border-0"
@@ -953,6 +979,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               // Sandbox integration to block aggressive popup ads
               sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             />
+            {/* Nút fullscreen custom cho embed — xoay ngang trên mobile */}
+            {!isLandscapeFullscreen && (
+              <button
+                onClick={toggleFullscreen}
+                className="absolute bottom-3 right-3 z-20 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 border border-white/20 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-all opacity-70 sm:opacity-60 sm:hover:opacity-100"
+                title="Toàn màn hình (xoay ngang)"
+              >
+                <Maximize className="w-4.5 h-4.5" />
+              </button>
+            )}
           </div>
         )}
 

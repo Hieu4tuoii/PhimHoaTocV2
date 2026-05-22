@@ -28,7 +28,7 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#e50914" />
+        <meta name="theme-color" content="#141414" />
       </head>
       <body className="min-h-full flex flex-col bg-navy-dark text-slate-100 font-sans">
         <AppProvider>
