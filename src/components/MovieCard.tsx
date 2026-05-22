@@ -48,7 +48,7 @@ const MovieCardInner: React.FC<MovieCardProps> = ({ movie }) => {
       className="group block relative flex flex-col w-full focus:outline-none focus:ring-2 focus:ring-brand-violet rounded-2xl overflow-hidden active:scale-[0.98] active:brightness-90 active:duration-75 transition-all duration-300"
     >
       {/* Poster Image Container */}
-      <div className="relative aspect-[2/3] w-full rounded-2xl bg-slate-900 overflow-hidden shadow-lg border border-slate-800/30 transition-all duration-500 group-hover:scale-105 group-hover:border-brand-violet/50 shadow-neon-hover">
+      <div className="relative aspect-[2/3] w-full rounded-2xl bg-slate-900 overflow-hidden shadow-lg border border-slate-800/30 transition-transform duration-500 group-hover:scale-105 group-hover:border-brand-violet/50 shadow-neon-hover">
         <img
           src={imgSrc}
           alt={movie.name}

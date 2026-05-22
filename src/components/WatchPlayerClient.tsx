@@ -61,6 +61,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [showControls, setShowControls] = useState(true);
+  // Performance: Ref đồng bộ showControls để hot path (timeupdate) đọc mà không re-attach listener
+  const showControlsRef = useRef(true);
+  showControlsRef.current = showControls;
   const [showResumeToast, setShowResumeToast] = useState(false);
   const [savedTime, setSavedTime] = useState(0);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -196,7 +199,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, [isPlaying]);
 
-
   // Performance: formatTime as a stable helper (no dependency on state)
   const formatTime = useCallback((timeInSeconds: number) => {
     const hrs = Math.floor(timeInSeconds / 3600);
@@ -247,6 +249,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       }
     }
   }, [formatTime]);
+
+  // Khi controls hiện lại sau giai đoạn ẩn, đồng bộ progress bar ngay lập tức để không thấy giá trị lệch
+  useEffect(() => {
+    if (showControls) {
+      updateProgressTime();
+    }
+  }, [showControls, updateProgressTime]);
 
   // 3. Initialize HLS Player on m3u8 link change
   useEffect(() => {
@@ -353,10 +362,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     
-    // Performance: Update ref + DOM directly instead of setState
+    // Performance: Update ref + DOM directly instead of setState. Skip DOM write khi controls ẩn (slider đang opacity-0)
     const handleTimeUpdate = () => {
       currentTimeRef.current = video.currentTime;
-      updateProgressTime();
+      if (showControlsRef.current) {
+        updateProgressTime();
+      }
     };
 
     const handleDurationChange = () => {
