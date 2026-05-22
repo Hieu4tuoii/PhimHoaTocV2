@@ -214,10 +214,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (progressBarRef.current) {
       progressBarRef.current.value = String(time);
       progressBarRef.current.max = String(dur || 0);
-      // Tô màu đỏ phần progress trượt qua theo đúng mã màu thiết kế #E50914
+      // Tô màu phần progress trượt qua
       const pct = dur > 0 ? (time / dur) * 100 : 0;
       progressBarRef.current.style.background = `linear-gradient(to right, #E50914 0%, #E50914 ${pct}%, #334155 ${pct}%, #334155 100%)`;
-      progressBarRef.current.style.accentColor = '#E50914';
     }
     if (currentTimeDisplayRef.current) {
       currentTimeDisplayRef.current.textContent = formatTime(time);

@@ -98,10 +98,10 @@ export const Header: React.FC = () => {
 
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 outline-none focus:outline-none border-b border-solid ${
+      className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 outline-none focus:outline-none ${
         isScrolled
-          ? 'glass-panel border-white/8 py-3 shadow-lg shadow-black/20'
-          : 'bg-gradient-to-b from-black/80 to-transparent border-transparent py-5'
+          ? 'glass-panel border-b border-white/8 py-3 shadow-lg shadow-black/20'
+          : 'bg-gradient-to-b from-black/80 to-transparent py-5'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -109,7 +109,7 @@ export const Header: React.FC = () => {
           
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group flex-shrink-0 outline-none active:scale-95 active:duration-75 transition-transform">
-            <div className="w-9 h-9 rounded-lg bg-gradient-brand flex items-center justify-center shadow-neon border border-white/10 group-hover:scale-105 transition-transform duration-300">
+            <div className="w-9 h-9 rounded-lg bg-gradient-brand flex items-center justify-center border border-white/10 group-hover:scale-105 transition-transform duration-300">
               <Play className="w-5 h-5 text-white fill-white ml-0.5" />
             </div>
             <span className="text-xl sm:text-2xl font-black tracking-wider text-gradient">
