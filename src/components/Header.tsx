@@ -100,7 +100,7 @@ export const Header: React.FC = () => {
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 outline-none focus:outline-none ${
         isScrolled
-          ? 'glass-panel border-b border-white/8 py-3 shadow-lg shadow-black/20'
+          ? 'glass-panel py-3 shadow-lg shadow-black/20'
           : 'bg-gradient-to-b from-black/80 to-transparent py-5'
       }`}
     >
