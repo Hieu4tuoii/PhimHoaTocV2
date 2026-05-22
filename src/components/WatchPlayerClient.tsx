@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock, SkipForward, List, X, ZoomIn } from 'lucide-react';
@@ -76,15 +76,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // ===== ZOOM / PAN states (chỉ hoạt động trong chế độ fullscreen) =====
   // Hỗ trợ pinch 2 ngón trên mobile và scroll wheel trên desktop để phóng to/thu nhỏ video.
+  // Performance: scale/offset không phải React state — pinch/wheel ghi trực tiếp video.style ở 60Hz mà không re-render.
   const MIN_SCALE = 1;
   const MAX_SCALE = 4;
-  const [videoScale, setVideoScale] = useState(1);
-  const [videoOffset, setVideoOffset] = useState({ x: 0, y: 0 });
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  // Chỉ flip khi vượt ngưỡng zoom (scale > 1) — phục vụ điều kiện hiện nút Reset, không bị thay đổi 60Hz.
+  const [isZoomed, setIsZoomed] = useState(false);
   const videoScaleRef = useRef(1);
   const videoOffsetRef = useRef({ x: 0, y: 0 });
-  videoScaleRef.current = videoScale;
-  videoOffsetRef.current = videoOffset;
+  // Ref để ghi phần trăm zoom trực tiếp xuống DOM, tránh re-render mỗi gesture event.
+  const zoomIndicatorTextRef = useRef<HTMLSpanElement>(null);
   const pinchStateRef = useRef<{
     initialDistance: number;
     initialScale: number;
@@ -100,6 +101,35 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Khi pinch/pan kết thúc, chặn handler tap kế tiếp để không vô tình toggle controls
   const suppressTapRef = useRef(false);
   const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Performance: ghi transform/transition trực tiếp lên <video> để gesture 60Hz không trigger setState.
+  const applyVideoTransform = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const s = videoScaleRef.current;
+    const o = videoOffsetRef.current;
+    if (s > 1) {
+      v.style.transform = `translate3d(${o.x}px, ${o.y}px, 0) scale(${s})`;
+    } else {
+      v.style.transform = '';
+    }
+  }, []);
+
+  const setVideoTransition = useCallback((enabled: boolean) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.style.transition = enabled ? 'transform 120ms ease-out' : 'none';
+  }, []);
+
+  // Cập nhật phần trăm zoom xuống DOM; chỉ setState `isZoomed` khi VƯỢT ngưỡng (true/false), không phải mỗi event.
+  const updateZoomDisplay = useCallback(() => {
+    const s = videoScaleRef.current;
+    if (zoomIndicatorTextRef.current) {
+      zoomIndicatorTextRef.current.textContent = `${Math.round(s * 100)}%`;
+    }
+    const zoomed = s > 1.001;
+    setIsZoomed((prev) => (prev !== zoomed ? zoomed : prev));
+  }, []);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
@@ -175,8 +205,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         setShowEpisodesDrawer(false);
         setIsLocked(false);
         // Reset zoom khi rời fullscreen — luôn trở về kích thước tự nhiên
-        setVideoScale(1);
-        setVideoOffset({ x: 0, y: 0 });
+        videoScaleRef.current = 1;
+        videoOffsetRef.current = { x: 0, y: 0 };
+        setVideoTransition(true);
+        applyVideoTransform();
+        updateZoomDisplay();
         try {
           (screen.orientation as any).unlock();
         } catch {
@@ -555,10 +588,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, []);
 
   const resetZoom = useCallback(() => {
-    setVideoScale(1);
-    setVideoOffset({ x: 0, y: 0 });
+    videoScaleRef.current = 1;
+    videoOffsetRef.current = { x: 0, y: 0 };
+    setVideoTransition(true);
+    applyVideoTransform();
+    updateZoomDisplay();
     flashZoomIndicator();
-  }, [flashZoomIndicator]);
+  }, [applyVideoTransform, setVideoTransition, updateZoomDisplay, flashZoomIndicator]);
 
   // Attach gesture listeners (wheel + multi-touch) với passive:false để có thể preventDefault
   useEffect(() => {
@@ -574,13 +610,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       const delta = -e.deltaY * 0.0015;
       const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, currentScale * (1 + delta)));
       if (Math.abs(nextScale - currentScale) < 0.001) return;
-      setVideoScale(nextScale);
+      videoScaleRef.current = nextScale;
       if (nextScale <= MIN_SCALE + 0.001) {
-        setVideoOffset({ x: 0, y: 0 });
+        videoOffsetRef.current = { x: 0, y: 0 };
       } else {
         const o = videoOffsetRef.current;
-        setVideoOffset(clampOffset(o.x, o.y, nextScale));
+        videoOffsetRef.current = clampOffset(o.x, o.y, nextScale);
       }
+      setVideoTransition(true);
+      applyVideoTransform();
+      updateZoomDisplay();
       flashZoomIndicator();
     };
 
@@ -596,6 +635,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           initialOffset: { ...videoOffsetRef.current },
         };
         panStateRef.current = null;
+        // Trong khi pinch → tắt transition để theo ngón tay tức thì
+        setVideoTransition(false);
       } else if (e.touches.length === 1 && videoScaleRef.current > 1) {
         // Khi đã zoom in → 1 ngón di chuyển để pan
         panStateRef.current = {
@@ -605,6 +646,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           startOffsetY: videoOffsetRef.current.y,
           moved: false,
         };
+        // Trong khi pan → tắt transition để bám sát ngón tay
+        setVideoTransition(false);
       }
     };
 
@@ -616,13 +659,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
         const ratio = distance / pinchStateRef.current.initialDistance;
         const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStateRef.current.initialScale * ratio));
-        setVideoScale(nextScale);
+        videoScaleRef.current = nextScale;
         if (nextScale <= MIN_SCALE + 0.001) {
-          setVideoOffset({ x: 0, y: 0 });
+          videoOffsetRef.current = { x: 0, y: 0 };
         } else {
           const o = pinchStateRef.current.initialOffset;
-          setVideoOffset(clampOffset(o.x, o.y, nextScale));
+          videoOffsetRef.current = clampOffset(o.x, o.y, nextScale);
         }
+        applyVideoTransform();
+        updateZoomDisplay();
         flashZoomIndicator();
       } else if (panStateRef.current && e.touches.length === 1 && videoScaleRef.current > 1) {
         e.preventDefault();
@@ -631,11 +676,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
           panStateRef.current.moved = true;
         }
-        setVideoOffset(clampOffset(
+        videoOffsetRef.current = clampOffset(
           panStateRef.current.startOffsetX + dx,
           panStateRef.current.startOffsetY + dy,
           videoScaleRef.current
-        ));
+        );
+        applyVideoTransform();
       }
     };
 
@@ -645,6 +691,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         suppressTapRef.current = true;
         setTimeout(() => { suppressTapRef.current = false; }, 400);
         pinchStateRef.current = null;
+        // Bật lại transition cho thao tác tiếp theo
+        setVideoTransition(true);
       }
       if (panStateRef.current && e.touches.length === 0) {
         if (panStateRef.current.moved) {
@@ -652,6 +700,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           setTimeout(() => { suppressTapRef.current = false; }, 400);
         }
         panStateRef.current = null;
+        setVideoTransition(true);
       }
     };
 
@@ -669,7 +718,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       container.removeEventListener('touchcancel', onTouchEnd);
       if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
     };
-  }, [clampOffset, flashZoomIndicator]);
+  }, [clampOffset, flashZoomIndicator, applyVideoTransform, setVideoTransition, updateZoomDisplay]);
 
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
   const handlePlayerTap = useCallback(() => {
@@ -835,6 +884,57 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }, 300);
   }, [isPlaying]);
 
+  // Performance: Memoize danh sách tập trong drawer fullscreen — tránh reconcile 100+ nút mỗi khi controls toggle hoặc state khác đổi.
+  const drawerEpisodeButtons = useMemo(() => (
+    currentServerEpisodes.map((ep) => {
+      const isCurrent = ep.slug === activeEpisode.slug;
+      return (
+        <button
+          key={ep.slug}
+          onClick={() => {
+            setShowEpisodesDrawer(false);
+            // In-place switch: đổi tập ngay mà không thoát fullscreen
+            setOverrideEpisode(ep);
+          }}
+          className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between ${
+            isCurrent
+              ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
+              : 'bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200'
+          }`}
+        >
+          <span className="truncate pr-2">{ep.name}</span>
+          {isCurrent && (
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan"></span>
+            </span>
+          )}
+        </button>
+      );
+    })
+  ), [currentServerEpisodes, activeEpisode.slug]);
+
+  // Performance: Memoize grid tập phim dưới player — tương tự drawer, đối với phim có nhiều tập (anime).
+  const bottomEpisodeLinks = useMemo(() => (
+    currentServerEpisodes.map((ep) => {
+      const isCurrent = ep.slug === activeEpisode.slug;
+      return (
+        <Link
+          key={ep.slug}
+          href={`/xem-phim/${movie.slug}/${ep.slug}`}
+          className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
+            isCurrent
+              ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
+              : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
+          }`}
+          title={ep.filename}
+        >
+          {ep.name}
+        </Link>
+      );
+    })
+  ), [currentServerEpisodes, activeEpisode.slug, movie.slug]);
+
   return (
     <div className="w-full space-y-8 animate-slide-up">
       
@@ -867,35 +967,29 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               onTouchEnd={handlePlayerTouchEnd}
               playsInline
               style={{
-                transform: videoScale > 1
-                  ? `translate3d(${videoOffset.x}px, ${videoOffset.y}px, 0) scale(${videoScale})`
-                  : undefined,
                 transformOrigin: 'center center',
-                transition: pinchStateRef.current || panStateRef.current
-                  ? 'none'
-                  : 'transform 120ms ease-out',
-                willChange: videoScale > 1 ? 'transform' : undefined,
+                willChange: 'transform',
                 touchAction: isLandscapeFullscreen ? 'none' : undefined,
               }}
             />
 
             {/* Zoom indicator + Reset:
                 - Flash 1.5s sau mỗi gesture (showZoomIndicator)
-                - Hoặc hiện cùng controls bar khi user tap để hiện điều khiển (showControls && videoScale > 1)
+                - Hoặc hiện cùng controls bar khi user tap để hiện điều khiển (showControls && isZoomed)
                 - Reset button chỉ xuất hiện khi đã zoom và controls đang hiện */}
             {isLandscapeFullscreen && (
               <div
                 className={`absolute top-4 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 shadow-lg transition-opacity duration-300 ${
-                  showZoomIndicator || (showControls && videoScale > 1)
+                  showZoomIndicator || (showControls && isZoomed)
                     ? 'opacity-100'
                     : 'opacity-0 pointer-events-none'
                 }`}
               >
                 <ZoomIn className="w-3.5 h-3.5 text-brand-cyan" />
-                <span className="text-xs font-bold text-white tabular-nums">
-                  {Math.round(videoScale * 100)}%
+                <span ref={zoomIndicatorTextRef} className="text-xs font-bold text-white tabular-nums">
+                  100%
                 </span>
-                {videoScale > 1 && showControls && (
+                {isZoomed && showControls && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1210,32 +1304,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 
                 {/* Body: Episode Grid/List Scrollable */}
                 <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
-                  {currentServerEpisodes.map((ep) => {
-                    const isCurrent = ep.slug === activeEpisode.slug;
-                    return (
-                      <button
-                        key={ep.slug}
-                        onClick={() => {
-                          setShowEpisodesDrawer(false);
-                          // In-place switch: đổi tập ngay mà không thoát fullscreen
-                          setOverrideEpisode(ep);
-                        }}
-                        className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between ${
-                          isCurrent
-                            ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
-                            : 'bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200'
-                        }`}
-                      >
-                        <span className="truncate pr-2">{ep.name}</span>
-                        {isCurrent && (
-                          <span className="flex h-2 w-2 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan"></span>
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {drawerEpisodeButtons}
                 </div>
               </div>
             </>
@@ -1400,24 +1469,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
         {/* Quick select grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
-          {currentServerEpisodes.map((ep) => {
-            const isCurrent = ep.slug === activeEpisode.slug;
-            
-            return (
-              <Link
-                key={ep.slug}
-                href={`/xem-phim/${movie.slug}/${ep.slug}`}
-                className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
-                  isCurrent
-                    ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
-                    : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
-                }`}
-                title={ep.filename}
-              >
-                {ep.name}
-              </Link>
-            );
-          })}
+          {bottomEpisodeLinks}
         </div>
 
         {/* Error reporting guide info */}
