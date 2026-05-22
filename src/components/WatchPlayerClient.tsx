@@ -75,7 +75,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const touchHandledRef = useRef(false);
 
   // ===== ZOOM / PAN states (chỉ hoạt động trong chế độ fullscreen) =====
-  // Hỗ trợ pinch 2 ngón trên mobile và scroll wheel trên desktop để phóng to/thu nhỏ video.
+  // Hỗ trợ pinch 2 ngón (kèm pan theo trung điểm) trên mobile và scroll wheel trên desktop để phóng to/thu nhỏ video.
+  // Pan chỉ hoạt động khi đặt 2 ngón — tránh trường hợp 1 ngón chạm nhầm làm dịch video.
   // Performance: scale/offset không phải React state — pinch/wheel ghi trực tiếp video.style ở 60Hz mà không re-render.
   const MIN_SCALE = 1;
   const MAX_SCALE = 4;
@@ -90,15 +91,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     initialDistance: number;
     initialScale: number;
     initialOffset: { x: number; y: number };
-  } | null>(null);
-  const panStateRef = useRef<{
-    startX: number;
-    startY: number;
-    startOffsetX: number;
-    startOffsetY: number;
+    initialMidX: number;
+    initialMidY: number;
     moved: boolean;
   } | null>(null);
-  // Khi pinch/pan kết thúc, chặn handler tap kế tiếp để không vô tình toggle controls
+  // Khi pinch kết thúc, chặn handler tap kế tiếp để không vô tình toggle controls
   const suppressTapRef = useRef(false);
   const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -633,22 +630,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           initialDistance: distance,
           initialScale: videoScaleRef.current,
           initialOffset: { ...videoOffsetRef.current },
-        };
-        panStateRef.current = null;
-        // Trong khi pinch → tắt transition để theo ngón tay tức thì
-        setVideoTransition(false);
-      } else if (e.touches.length === 1 && videoScaleRef.current > 1) {
-        // Khi đã zoom in → 1 ngón di chuyển để pan
-        panStateRef.current = {
-          startX: e.touches[0].clientX,
-          startY: e.touches[0].clientY,
-          startOffsetX: videoOffsetRef.current.x,
-          startOffsetY: videoOffsetRef.current.y,
+          initialMidX: (t1.clientX + t2.clientX) / 2,
+          initialMidY: (t1.clientY + t2.clientY) / 2,
           moved: false,
         };
-        // Trong khi pan → tắt transition để bám sát ngón tay
+        // Trong khi pinch → tắt transition để theo ngón tay tức thì
         setVideoTransition(false);
       }
+      // 1 ngón không kích hoạt pan — để tránh chạm nhầm khi đang zoom
     };
 
     const onTouchMove = (e: TouchEvent) => {
@@ -663,43 +652,30 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         if (nextScale <= MIN_SCALE + 0.001) {
           videoOffsetRef.current = { x: 0, y: 0 };
         } else {
+          // Pan theo trung điểm 2 ngón: tâm pinch dịch bao nhiêu thì view dịch bấy nhiêu
+          const midX = (t1.clientX + t2.clientX) / 2;
+          const midY = (t1.clientY + t2.clientY) / 2;
+          const dx = midX - pinchStateRef.current.initialMidX;
+          const dy = midY - pinchStateRef.current.initialMidY;
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || Math.abs(ratio - 1) > 0.02) {
+            pinchStateRef.current.moved = true;
+          }
           const o = pinchStateRef.current.initialOffset;
-          videoOffsetRef.current = clampOffset(o.x, o.y, nextScale);
+          videoOffsetRef.current = clampOffset(o.x + dx, o.y + dy, nextScale);
         }
         applyVideoTransform();
         updateZoomDisplay();
         flashZoomIndicator();
-      } else if (panStateRef.current && e.touches.length === 1 && videoScaleRef.current > 1) {
-        e.preventDefault();
-        const dx = e.touches[0].clientX - panStateRef.current.startX;
-        const dy = e.touches[0].clientY - panStateRef.current.startY;
-        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-          panStateRef.current.moved = true;
-        }
-        videoOffsetRef.current = clampOffset(
-          panStateRef.current.startOffsetX + dx,
-          panStateRef.current.startOffsetY + dy,
-          videoScaleRef.current
-        );
-        applyVideoTransform();
       }
     };
 
-    const onTouchEnd = (e: TouchEvent) => {
+    const onTouchEnd = () => {
       if (pinchStateRef.current) {
         // Vừa pinch xong (nâng ít nhất 1 ngón) → chặn tap kế tiếp để không toggle controls
         suppressTapRef.current = true;
         setTimeout(() => { suppressTapRef.current = false; }, 400);
         pinchStateRef.current = null;
         // Bật lại transition cho thao tác tiếp theo
-        setVideoTransition(true);
-      }
-      if (panStateRef.current && e.touches.length === 0) {
-        if (panStateRef.current.moved) {
-          suppressTapRef.current = true;
-          setTimeout(() => { suppressTapRef.current = false; }, 400);
-        }
-        panStateRef.current = null;
         setVideoTransition(true);
       }
     };
