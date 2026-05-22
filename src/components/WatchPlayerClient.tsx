@@ -39,6 +39,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // In-place episode switch: khi đang fullscreen, đổi tập mà không chuyển trang
   const [overrideEpisode, setOverrideEpisode] = useState<EpisodeData | null>(null);
+  const overrideEpisodeRef = useRef<EpisodeData | null>(null);
+  overrideEpisodeRef.current = overrideEpisode;
   const prevVolumeRef = useRef(1);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -127,7 +129,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
     const handleFullscreenChange = () => {
       checkLandscapeFullscreen();
-      if (!document.fullscreenElement) {
+      if (document.fullscreenElement) {
+        // Vào fullscreen (bất kể nguồn: nút custom hay iframe native) → xoay ngang
+        try {
+          (screen.orientation as any).lock('landscape');
+        } catch {
+          // Orientation lock không được hỗ trợ — bỏ qua
+        }
+      } else {
         // User thoát fullscreen (Escape/Back) → unlock orientation và đóng drawer
         setShowEpisodesDrawer(false);
         setIsLocked(false);
@@ -246,8 +255,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        // Hls loaded successfully
-        checkAndShowResume();
+        // Hls loaded successfully — auto-play khi đổi tập in-place
+        if (overrideEpisodeRef.current) {
+          video.play().catch(() => {});
+        } else {
+          checkAndShowResume();
+        }
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -681,6 +694,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     setIsLocked(false);
                     setShowControls(true);
                   }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setIsLocked(false);
+                    setShowControls(true);
+                  }}
                   className={`w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg transition-all duration-300 ${
                     showControls ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
                   }`}
@@ -971,24 +990,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
         {/* Play Embed Iframe Mode */}
         {(playMode === 'embed' || !activeEpisode.link_m3u8) && (
-          <div className="relative w-full h-full group/embed">
+          <div className="relative w-full h-full">
             <iframe
               src={activeEpisode.link_embed}
               className="w-full h-full border-0"
               allowFullScreen
+              allow="fullscreen; autoplay; encrypted-media"
               // Sandbox integration to block aggressive popup ads
               sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             />
-            {/* Nút fullscreen custom cho embed — xoay ngang trên mobile */}
-            {!isLandscapeFullscreen && (
-              <button
-                onClick={toggleFullscreen}
-                className="absolute bottom-3 right-3 z-20 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 border border-white/20 flex items-center justify-center text-white cursor-pointer active:scale-90 transition-all opacity-70 sm:opacity-60 sm:hover:opacity-100"
-                title="Toàn màn hình (xoay ngang)"
-              >
-                <Maximize className="w-4.5 h-4.5" />
-              </button>
-            )}
           </div>
         )}
 
