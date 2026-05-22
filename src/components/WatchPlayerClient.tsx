@@ -52,6 +52,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const progressBarRef = useRef<HTMLInputElement>(null);
   const currentTimeDisplayRef = useRef<HTMLSpanElement>(null);
   const durationDisplayRef = useRef<HTMLSpanElement>(null);
+  // Performance: Cache giá trị đã ghi xuống DOM để skip redundant writes mỗi timeupdate
+  const lastBgPctRef = useRef(-1);
+  const lastTimeTextRef = useRef('');
+  const lastDurationTextRef = useRef('');
   
   // Custom Controls States (only for low-frequency UI updates)
   const [isPlaying, setIsPlaying] = useState(false);
@@ -206,23 +210,41 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     return result;
   }, []);
 
-  // Performance: Direct DOM update for progress bar — avoids setState 4x/sec
-  const updateProgressDOM = useCallback(() => {
+  // Performance: Hot path mỗi timeupdate (~4 lần/s) — chỉ ghi DOM nếu giá trị thực sự đổi
+  const updateProgressTime = useCallback(() => {
     const time = currentTimeRef.current;
     const dur = durationRef.current;
-    
+
     if (progressBarRef.current) {
       progressBarRef.current.value = String(time);
-      progressBarRef.current.max = String(dur || 0);
-      // Tô màu phần progress trượt qua
-      const pct = dur > 0 ? (time / dur) * 100 : 0;
-      progressBarRef.current.style.background = `linear-gradient(to right, #E50914 0%, #E50914 ${pct}%, #334155 ${pct}%, #334155 100%)`;
+      // Diff gradient ở 0.1% để skip style write thừa
+      const pct = dur > 0 ? Math.round((time / dur) * 1000) / 10 : 0;
+      if (pct !== lastBgPctRef.current) {
+        lastBgPctRef.current = pct;
+        progressBarRef.current.style.background = `linear-gradient(to right, #E50914 0%, #E50914 ${pct}%, #334155 ${pct}%, #334155 100%)`;
+      }
     }
     if (currentTimeDisplayRef.current) {
-      currentTimeDisplayRef.current.textContent = formatTime(time);
+      const text = formatTime(time);
+      if (text !== lastTimeTextRef.current) {
+        lastTimeTextRef.current = text;
+        currentTimeDisplayRef.current.textContent = text;
+      }
+    }
+  }, [formatTime]);
+
+  // Chỉ chạy khi `durationchange` — không cần update mỗi timeupdate
+  const updateProgressDuration = useCallback(() => {
+    const dur = durationRef.current;
+    if (progressBarRef.current) {
+      progressBarRef.current.max = String(dur || 0);
     }
     if (durationDisplayRef.current) {
-      durationDisplayRef.current.textContent = formatTime(dur);
+      const text = formatTime(dur);
+      if (text !== lastDurationTextRef.current) {
+        lastDurationTextRef.current = text;
+        durationDisplayRef.current.textContent = text;
+      }
     }
   }, [formatTime]);
 
@@ -245,6 +267,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         maxMaxBufferLength: 60,           // Increase buffer from 30s → 60s for unstable networks
         maxBufferSize: 60 * 1000 * 1000,  // 60MB buffer size
         maxBufferHole: 0.5,               // Allow small buffer holes
+        backBufferLength: 90,             // Chỉ giữ 90s đã xem (mặc định Infinity) — giảm memory pressure trên mobile
         enableWorker: true,
         startLevel: -1,                   // Auto-detect best quality level
         capLevelToPlayerSize: true,       // Don't load resolution > player size
@@ -333,12 +356,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     // Performance: Update ref + DOM directly instead of setState
     const handleTimeUpdate = () => {
       currentTimeRef.current = video.currentTime;
-      updateProgressDOM();
+      updateProgressTime();
     };
 
     const handleDurationChange = () => {
       durationRef.current = video.duration;
-      updateProgressDOM();
+      updateProgressDuration();
+      updateProgressTime();
     };
 
     // Auto save progress every 5 seconds when playing
@@ -388,7 +412,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       clearInterval(saveInterval);
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
     };
-  }, [activeEpisode, playMode, nextEp, movie.slug, movie.name, movie.thumb_url, movie.poster_url, activeEpisode.slug, activeEpisode.name, saveWatchProgress, updateProgressDOM, router]);
+  }, [activeEpisode, playMode, nextEp, movie.slug, movie.name, movie.thumb_url, movie.poster_url, activeEpisode.slug, activeEpisode.name, saveWatchProgress, updateProgressTime, updateProgressDuration, router]);
 
   // Custom Player Actions
   const handleSkip = useCallback((seconds: number) => {
@@ -399,8 +423,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (newTime > durationRef.current) newTime = durationRef.current;
     video.currentTime = newTime;
     currentTimeRef.current = newTime;
-    updateProgressDOM();
-  }, [updateProgressDOM]);
+    updateProgressTime();
+  }, [updateProgressTime]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -531,8 +555,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     const seekTime = parseFloat(e.target.value);
     video.currentTime = seekTime;
     currentTimeRef.current = seekTime;
-    updateProgressDOM();
-  }, [updateProgressDOM]);
+    updateProgressTime();
+  }, [updateProgressTime]);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const video = videoRef.current;

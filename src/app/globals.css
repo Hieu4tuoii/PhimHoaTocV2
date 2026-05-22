@@ -85,7 +85,6 @@ a:focus {
   background: rgba(20, 20, 20, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  will-change: backdrop-filter;
 }
 
 .text-gradient {
@@ -209,6 +208,11 @@ a:focus {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   background: rgba(0, 0, 0, 0.95) !important;
+}
+
+/* Performance: Pause animate-pulse khi đang xem phim — pulse buộc GPU re-composite Header/BottomNav (đè lên video) mỗi 2s */
+.is-watching .animate-pulse {
+  animation: none !important;
 }
 
 /* Tăng kích thước nút bấm trong player và tối ưu hóa phản hồi chạm trên mobile touch */
