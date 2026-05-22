@@ -534,11 +534,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, [playMode, isLocked, isPlaying, handleSkip, togglePlay]);
 
   // ===== ZOOM helpers =====
-  // Hiện chỉ báo mức zoom trong ~1.2s mỗi khi thay đổi
+  // Hiện chỉ báo mức zoom trong ~1.5s mỗi khi thay đổi, sau đó tự ẩn
   const flashZoomIndicator = useCallback(() => {
     setShowZoomIndicator(true);
     if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
-    zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1200);
+    zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1500);
   }, []);
 
   // Giới hạn pan để mép video không bị kéo ra ngoài khung hiển thị
@@ -553,12 +553,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       y: Math.max(-maxY, Math.min(maxY, y)),
     };
   }, []);
-
-  const resetZoom = useCallback(() => {
-    setVideoScale(1);
-    setVideoOffset({ x: 0, y: 0 });
-    flashZoomIndicator();
-  }, [flashZoomIndicator]);
 
   // Attach gesture listeners (wheel + multi-touch) với passive:false để có thể preventDefault
   useEffect(() => {
@@ -879,34 +873,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               }}
             />
 
-            {/* Zoom indicator + nút reset (chỉ hiện trong fullscreen khi đã zoom) */}
-            {isLandscapeFullscreen && (videoScale > 1 || showZoomIndicator) && (
+            {/* Zoom indicator: hiển thị mức zoom trong ~1.5s mỗi khi thay đổi rồi tự ẩn */}
+            {isLandscapeFullscreen && (
               <div
                 className={`absolute top-4 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 shadow-lg transition-opacity duration-300 ${
-                  showZoomIndicator || videoScale > 1 ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  showZoomIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
               >
                 <ZoomIn className="w-3.5 h-3.5 text-brand-cyan" />
                 <span className="text-xs font-bold text-white tabular-nums">
                   {Math.round(videoScale * 100)}%
                 </span>
-                {videoScale > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      resetZoom();
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      resetZoom();
-                    }}
-                    className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-brand-rose hover:text-white cursor-pointer transition-colors"
-                    title="Đặt lại kích thước"
-                  >
-                    Reset
-                  </button>
-                )}
               </div>
             )}
 
