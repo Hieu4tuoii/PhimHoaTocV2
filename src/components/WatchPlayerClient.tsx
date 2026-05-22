@@ -554,6 +554,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, []);
 
+  const resetZoom = useCallback(() => {
+    setVideoScale(1);
+    setVideoOffset({ x: 0, y: 0 });
+    flashZoomIndicator();
+  }, [flashZoomIndicator]);
+
   // Attach gesture listeners (wheel + multi-touch) với passive:false để có thể preventDefault
   useEffect(() => {
     const container = playerContainerRef.current;
@@ -873,17 +879,39 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               }}
             />
 
-            {/* Zoom indicator: hiển thị mức zoom trong ~1.5s mỗi khi thay đổi rồi tự ẩn */}
+            {/* Zoom indicator + Reset:
+                - Flash 1.5s sau mỗi gesture (showZoomIndicator)
+                - Hoặc hiện cùng controls bar khi user tap để hiện điều khiển (showControls && videoScale > 1)
+                - Reset button chỉ xuất hiện khi đã zoom và controls đang hiện */}
             {isLandscapeFullscreen && (
               <div
                 className={`absolute top-4 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 shadow-lg transition-opacity duration-300 ${
-                  showZoomIndicator ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  showZoomIndicator || (showControls && videoScale > 1)
+                    ? 'opacity-100'
+                    : 'opacity-0 pointer-events-none'
                 }`}
               >
                 <ZoomIn className="w-3.5 h-3.5 text-brand-cyan" />
                 <span className="text-xs font-bold text-white tabular-nums">
                   {Math.round(videoScale * 100)}%
                 </span>
+                {videoScale > 1 && showControls && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetZoom();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      resetZoom();
+                    }}
+                    className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-brand-rose hover:text-white cursor-pointer transition-colors"
+                    title="Đặt lại kích thước"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
             )}
 
