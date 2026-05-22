@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock, SkipForward, List, X } from 'lucide-react';
+import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock, SkipForward, List, X, ZoomIn } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { MovieDetail, MovieServer, EpisodeData } from '@/types';
 import Hls from 'hls.js';
@@ -73,6 +73,33 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const isTouchDeviceRef = useRef(false);
   const touchHandledRef = useRef(false);
+
+  // ===== ZOOM / PAN states (chỉ hoạt động trong chế độ fullscreen) =====
+  // Hỗ trợ pinch 2 ngón trên mobile và scroll wheel trên desktop để phóng to/thu nhỏ video.
+  const MIN_SCALE = 1;
+  const MAX_SCALE = 4;
+  const [videoScale, setVideoScale] = useState(1);
+  const [videoOffset, setVideoOffset] = useState({ x: 0, y: 0 });
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const videoScaleRef = useRef(1);
+  const videoOffsetRef = useRef({ x: 0, y: 0 });
+  videoScaleRef.current = videoScale;
+  videoOffsetRef.current = videoOffset;
+  const pinchStateRef = useRef<{
+    initialDistance: number;
+    initialScale: number;
+    initialOffset: { x: number; y: number };
+  } | null>(null);
+  const panStateRef = useRef<{
+    startX: number;
+    startY: number;
+    startOffsetX: number;
+    startOffsetY: number;
+    moved: boolean;
+  } | null>(null);
+  // Khi pinch/pan kết thúc, chặn handler tap kế tiếp để không vô tình toggle controls
+  const suppressTapRef = useRef(false);
+  const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
@@ -147,6 +174,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         // User thoát fullscreen (Escape/Back) → unlock orientation và đóng drawer
         setShowEpisodesDrawer(false);
         setIsLocked(false);
+        // Reset zoom khi rời fullscreen — luôn trở về kích thước tự nhiên
+        setVideoScale(1);
+        setVideoOffset({ x: 0, y: 0 });
         try {
           (screen.orientation as any).unlock();
         } catch {
@@ -503,6 +533,144 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, [playMode, isLocked, isPlaying, handleSkip, togglePlay]);
 
+  // ===== ZOOM helpers =====
+  // Hiện chỉ báo mức zoom trong ~1.2s mỗi khi thay đổi
+  const flashZoomIndicator = useCallback(() => {
+    setShowZoomIndicator(true);
+    if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
+    zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1200);
+  }, []);
+
+  // Giới hạn pan để mép video không bị kéo ra ngoài khung hiển thị
+  const clampOffset = useCallback((x: number, y: number, scale: number): { x: number; y: number } => {
+    const container = playerContainerRef.current;
+    if (!container || scale <= 1) return { x: 0, y: 0 };
+    const rect = container.getBoundingClientRect();
+    const maxX = (rect.width * (scale - 1)) / 2;
+    const maxY = (rect.height * (scale - 1)) / 2;
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setVideoScale(1);
+    setVideoOffset({ x: 0, y: 0 });
+    flashZoomIndicator();
+  }, [flashZoomIndicator]);
+
+  // Attach gesture listeners (wheel + multi-touch) với passive:false để có thể preventDefault
+  useEffect(() => {
+    const container = playerContainerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      // Chỉ cho phép zoom khi đang fullscreen
+      if (!document.fullscreenElement) return;
+      e.preventDefault();
+      const currentScale = videoScaleRef.current;
+      // Bước zoom tỉ lệ thuận với scale hiện tại → cảm giác mượt ở mọi mức
+      const delta = -e.deltaY * 0.0015;
+      const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, currentScale * (1 + delta)));
+      if (Math.abs(nextScale - currentScale) < 0.001) return;
+      setVideoScale(nextScale);
+      if (nextScale <= MIN_SCALE + 0.001) {
+        setVideoOffset({ x: 0, y: 0 });
+      } else {
+        const o = videoOffsetRef.current;
+        setVideoOffset(clampOffset(o.x, o.y, nextScale));
+      }
+      flashZoomIndicator();
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!document.fullscreenElement) return;
+      if (e.touches.length === 2) {
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        pinchStateRef.current = {
+          initialDistance: distance,
+          initialScale: videoScaleRef.current,
+          initialOffset: { ...videoOffsetRef.current },
+        };
+        panStateRef.current = null;
+      } else if (e.touches.length === 1 && videoScaleRef.current > 1) {
+        // Khi đã zoom in → 1 ngón di chuyển để pan
+        panStateRef.current = {
+          startX: e.touches[0].clientX,
+          startY: e.touches[0].clientY,
+          startOffsetX: videoOffsetRef.current.x,
+          startOffsetY: videoOffsetRef.current.y,
+          moved: false,
+        };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (pinchStateRef.current && e.touches.length === 2) {
+        e.preventDefault();
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const ratio = distance / pinchStateRef.current.initialDistance;
+        const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStateRef.current.initialScale * ratio));
+        setVideoScale(nextScale);
+        if (nextScale <= MIN_SCALE + 0.001) {
+          setVideoOffset({ x: 0, y: 0 });
+        } else {
+          const o = pinchStateRef.current.initialOffset;
+          setVideoOffset(clampOffset(o.x, o.y, nextScale));
+        }
+        flashZoomIndicator();
+      } else if (panStateRef.current && e.touches.length === 1 && videoScaleRef.current > 1) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - panStateRef.current.startX;
+        const dy = e.touches[0].clientY - panStateRef.current.startY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          panStateRef.current.moved = true;
+        }
+        setVideoOffset(clampOffset(
+          panStateRef.current.startOffsetX + dx,
+          panStateRef.current.startOffsetY + dy,
+          videoScaleRef.current
+        ));
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (pinchStateRef.current) {
+        // Vừa pinch xong (nâng ít nhất 1 ngón) → chặn tap kế tiếp để không toggle controls
+        suppressTapRef.current = true;
+        setTimeout(() => { suppressTapRef.current = false; }, 400);
+        pinchStateRef.current = null;
+      }
+      if (panStateRef.current && e.touches.length === 0) {
+        if (panStateRef.current.moved) {
+          suppressTapRef.current = true;
+          setTimeout(() => { suppressTapRef.current = false; }, 400);
+        }
+        panStateRef.current = null;
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
+    };
+  }, [clampOffset, flashZoomIndicator]);
+
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
   const handlePlayerTap = useCallback(() => {
     lastClickTimeRef.current = Date.now();
@@ -540,6 +708,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       touchHandledRef.current = false;
       return;
     }
+    // Vừa kết thúc pinch/pan → bỏ qua tap để không vô tình toggle controls
+    if (suppressTapRef.current) return;
 
     const target = e.target as HTMLElement;
     if (isInteractiveTarget(target)) return;
@@ -552,6 +722,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Touch handler riêng cho mobile — phản hồi ngay tại touchend, không chờ 300ms click delay
   const handlePlayerTouchEnd = useCallback((e: React.TouchEvent) => {
     isTouchDeviceRef.current = true;
+    // Vừa kết thúc pinch/pan → bỏ qua tap (tránh toggle controls ngoài ý muốn)
+    if (suppressTapRef.current) return;
+    // Đang còn ngón khác đang chạm (đang trong gesture đa chạm) → không phải tap
+    if (e.touches.length > 0) return;
     const target = e.target as HTMLElement;
     if (isInteractiveTarget(target)) return;
 
@@ -692,7 +866,49 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               onClick={handlePlayerClick}
               onTouchEnd={handlePlayerTouchEnd}
               playsInline
+              style={{
+                transform: videoScale > 1
+                  ? `translate3d(${videoOffset.x}px, ${videoOffset.y}px, 0) scale(${videoScale})`
+                  : undefined,
+                transformOrigin: 'center center',
+                transition: pinchStateRef.current || panStateRef.current
+                  ? 'none'
+                  : 'transform 120ms ease-out',
+                willChange: videoScale > 1 ? 'transform' : undefined,
+                touchAction: isLandscapeFullscreen ? 'none' : undefined,
+              }}
             />
+
+            {/* Zoom indicator + nút reset (chỉ hiện trong fullscreen khi đã zoom) */}
+            {isLandscapeFullscreen && (videoScale > 1 || showZoomIndicator) && (
+              <div
+                className={`absolute top-4 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 shadow-lg transition-opacity duration-300 ${
+                  showZoomIndicator || videoScale > 1 ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+              >
+                <ZoomIn className="w-3.5 h-3.5 text-brand-cyan" />
+                <span className="text-xs font-bold text-white tabular-nums">
+                  {Math.round(videoScale * 100)}%
+                </span>
+                {videoScale > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      resetZoom();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      resetZoom();
+                    }}
+                    className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-brand-rose hover:text-white cursor-pointer transition-colors"
+                    title="Đặt lại kích thước"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Khóa màn hình Overlay — tap để toggle hiển thị nút unlock giống controls */}
             {isLocked && isLandscapeFullscreen && (
