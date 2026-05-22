@@ -109,6 +109,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
   }, [isCinemaMode]);
 
+  // Fix #1: Toggle class 'is-watching' trên body để tắt backdrop-blur trên Header/BottomNav
+  useEffect(() => {
+    document.body.classList.add('is-watching');
+    return () => document.body.classList.remove('is-watching');
+  }, []);
+
   // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset & PiP check
   useEffect(() => {
     const checkLandscapeFullscreen = () => {
@@ -582,7 +588,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (mouseMoveThrottleRef.current) return;
     mouseMoveThrottleRef.current = true;
 
-    setShowControls(true);
+    setShowControls((prev) => {
+      if (prev) return prev; // Đã hiện rồi → không re-render
+      return true;
+    });
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     
     if (isPlaying) {
@@ -599,11 +608,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   return (
     <div className="w-full space-y-8 animate-slide-up">
       
-      {/* 1. CINEMA BACKDROP OVERLAY OVER WHOLE PAGE */}
-      <div 
-        className="cinema-backdrop cinema-backdrop-overlay" 
-        onClick={() => toggleCinemaMode()}
-      />
+      {/* 1. CINEMA BACKDROP OVERLAY OVER WHOLE PAGE — chỉ render khi bật cinema mode */}
+      {isCinemaMode && (
+        <div 
+          className="cinema-backdrop cinema-backdrop-overlay active" 
+          onClick={() => toggleCinemaMode()}
+        />
+      )}
 
       {/* 2. CINEMA PLAYER CONTAINER */}
       <div 
@@ -613,7 +624,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
             : 'shadow-black/60'
         }`}
-        style={{ willChange: 'transform', contain: 'content' }}
         onMouseMove={handleMouseMove}
       >
         
@@ -767,10 +777,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     defaultValue="0"
                     onChange={handleSeekChange}
                     className="player-slider w-full cursor-pointer focus:outline-none"
-                    style={{
-                      background: `linear-gradient(to right, #E50914 0%, #E50914 0%, #334155 0%, #334155 100%)`,
-                      accentColor: '#E50914'
-                    }}
                   />
                   <span ref={durationDisplayRef} className="text-xs text-slate-300 tabular-nums">
                     0:00

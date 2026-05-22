@@ -175,8 +175,20 @@ a:focus {
 
 /* Performance: Isolate player paint scope from rest of page */
 .custom-player-container {
-  contain: layout style;
-  will-change: transform;
+  contain: layout style paint;
+}
+
+/* Performance: Tắt backdrop-blur trên Header/BottomNav khi đang xem phim để tránh GPU re-composite mỗi video frame */
+.is-watching .glass-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.is-watching .backdrop-blur-md {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(0, 0, 0, 0.95) !important;
 }
 
 /* Tăng kích thước nút bấm trong player và tối ưu hóa phản hồi chạm trên mobile touch */
@@ -189,6 +201,19 @@ a:focus {
   a, button, select, input[type="submit"], [role="button"] {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+  }
+
+  /* Performance Fix #6: Tắt backdrop-blur trên toàn bộ mobile touch device để giảm GPU overhead */
+  .glass-panel {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(0, 0, 0, 0.92);
+  }
+  
+  .backdrop-blur-md {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(0, 0, 0, 0.95) !important;
   }
 }
 
