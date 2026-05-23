@@ -18,14 +18,10 @@ self.addEventListener('fetch', (event) => {
   // (image caching was explicitly removed per user request)
   event.respondWith(
     fetch(event.request).catch(() => {
-      // If offline and it's a navigation request, return a basic offline page
-      if (event.request.mode === 'navigate') {
-        return new Response(
-          '<html><body style="background:#020617;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><div style="text-align:center"><h1>Phim Hỏa Tốc</h1><p>Bạn đang offline. Vui lòng kiểm tra kết nối mạng.</p></div></body></html>',
-          { headers: { 'Content-Type': 'text/html' } }
-        );
-      }
-      return new Response('', { status: 408 });
+      return new Response(
+        '<html><body style="background:#020617;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><div style="text-align:center"><h1>Phim Hỏa Tốc</h1><p>Bạn đang offline. Vui lòng kiểm tra kết nối mạng.</p></div></body></html>',
+        { headers: { 'Content-Type': 'text/html' } }
+      );
     })
   );
 });
