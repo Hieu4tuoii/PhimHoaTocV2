@@ -141,13 +141,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const prevEp = currentEpIndex > 0 ? currentServerEpisodes[currentEpIndex - 1] : null;
   const nextEp = currentEpIndex < currentServerEpisodes.length - 1 ? currentServerEpisodes[currentEpIndex + 1] : null;
 
-  // Performance: Prefetch next episode route for instant navigation
-  useEffect(() => {
-    if (nextEp) {
-      router.prefetch(`/xem-phim/${movie.slug}/${nextEp.slug}`);
-    }
-  }, [nextEp, movie.slug, router]);
-
   // 1. Sync server list index on mount
   useEffect(() => {
     // If HLS link is empty, fall back to embed iframe immediately
@@ -331,12 +324,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
 
     if (Hls.isSupported()) {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
       const hls = new Hls({
         // Performance: Optimized HLS config for smoother streaming
-        maxMaxBufferLength: 60,           // Increase buffer from 30s → 60s for unstable networks
-        maxBufferSize: 60 * 1000 * 1000,  // 60MB buffer size
+        maxMaxBufferLength: isMobile ? 30 : 60,
+        maxBufferSize: isMobile ? 30_000_000 : 60_000_000,
         maxBufferHole: 0.5,               // Allow small buffer holes
-        backBufferLength: 90,             // Chỉ giữ 90s đã xem (mặc định Infinity) — giảm memory pressure trên mobile
+        backBufferLength: isMobile ? 30 : 90,
         enableWorker: true,
         startLevel: -1,                   // Auto-detect best quality level
         capLevelToPlayerSize: true,       // Don't load resolution > player size
@@ -681,20 +676,24 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
-    container.addEventListener('touchstart', onTouchStart, { passive: true });
-    container.addEventListener('touchmove', onTouchMove, { passive: false });
-    container.addEventListener('touchend', onTouchEnd, { passive: true });
-    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    if (isLandscapeFullscreen) {
+      container.addEventListener('touchstart', onTouchStart, { passive: true });
+      container.addEventListener('touchmove', onTouchMove, { passive: false });
+      container.addEventListener('touchend', onTouchEnd, { passive: true });
+      container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    }
 
     return () => {
       container.removeEventListener('wheel', onWheel);
-      container.removeEventListener('touchstart', onTouchStart);
-      container.removeEventListener('touchmove', onTouchMove);
-      container.removeEventListener('touchend', onTouchEnd);
-      container.removeEventListener('touchcancel', onTouchEnd);
+      if (isLandscapeFullscreen) {
+        container.removeEventListener('touchstart', onTouchStart);
+        container.removeEventListener('touchmove', onTouchMove);
+        container.removeEventListener('touchend', onTouchEnd);
+        container.removeEventListener('touchcancel', onTouchEnd);
+      }
       if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
     };
-  }, [clampOffset, flashZoomIndicator, applyVideoTransform, setVideoTransition, updateZoomDisplay]);
+  }, [isLandscapeFullscreen, clampOffset, flashZoomIndicator, applyVideoTransform, setVideoTransition, updateZoomDisplay]);
 
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
   const handlePlayerTap = useCallback(() => {
@@ -872,7 +871,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             // In-place switch: đổi tập ngay mà không thoát fullscreen
             setOverrideEpisode(ep);
           }}
-          className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between ${
+          className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-colors duration-300 cursor-pointer flex items-center justify-between ${
             isCurrent
               ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
               : 'bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200'
@@ -898,7 +897,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         <Link
           key={ep.slug}
           href={`/xem-phim/${movie.slug}/${ep.slug}`}
-          className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
+          prefetch={false}
+          className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-[transform,border-color,background-color,color] duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
             isCurrent
               ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
               : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
@@ -944,7 +944,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               playsInline
               style={{
                 transformOrigin: 'center center',
-                willChange: 'transform',
+                willChange: isLandscapeFullscreen ? 'transform' : undefined,
                 touchAction: isLandscapeFullscreen ? 'none' : undefined,
               }}
             />
@@ -1025,7 +1025,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     setIsLocked(false);
                     setShowControls(true);
                   }}
-                  className={`w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg transition-all duration-300 ${
+                  className={`w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg transition-[opacity,transform,background-color] duration-300 ${
                     showControls ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
                   }`}
                   title="Mở khóa màn hình"
@@ -1045,7 +1045,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 onTouchEnd={handlePlayerTouchEnd}
               >
               {/* Top controls: Movie titles & Quick Episode list (Ẩn mượt mà khi chưa bấm phát) */}
-              <div className={`flex justify-between items-center controls-prevent-click transition-all duration-300 ${
+              <div className={`flex justify-between items-center controls-prevent-click transition-[opacity,transform] duration-300 ${
                 !isPlaying ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100'
               }`}>
                 <div className="space-y-0.5">
@@ -1059,7 +1059,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                       e.stopPropagation();
                       setShowEpisodesDrawer(true);
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 flex items-center gap-2 text-xs font-bold text-slate-200 cursor-pointer active:scale-95 transition-all shadow-md"
+                    className="px-3.5 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 flex items-center gap-2 text-xs font-bold text-slate-200 cursor-pointer active:scale-95 transition-[transform,background-color,border-color] shadow-md"
                     title="Danh sách tập"
                   >
                     <List className="w-4 h-4 text-slate-200" />
@@ -1076,7 +1076,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     setIsLocked(true);
                     setShowControls(false);
                   }}
-                  className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all z-40"
+                  className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-[transform,background-color,border-color] z-40"
                   title="Khóa màn hình"
                 >
                   <Unlock className="w-5 h-5 text-slate-200" />
@@ -1090,7 +1090,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     e.stopPropagation();
                     handleSkip(-10);
                   }}
-                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
                   title="Lùi 10 giây"
                 >
                   <RotateCcw className="w-5 h-5 text-white" />
@@ -1116,7 +1116,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     e.stopPropagation();
                     handleSkip(10);
                   }}
-                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-all duration-200"
+                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
                   title="Tua 10 giây"
                 >
                   <RotateCw className="w-5 h-5 text-white" />
@@ -1124,7 +1124,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               </div>
 
               {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
-              <div className={`space-y-3 w-full controls-prevent-click transition-all duration-300 ${
+              <div className={`space-y-3 w-full controls-prevent-click transition-[opacity,transform] duration-300 ${
                 !isPlaying ? 'opacity-0 pointer-events-none translate-y-4' : 'opacity-100'
               }`}>
                 
@@ -1272,7 +1272,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   </div>
                   <button 
                     onClick={() => setShowEpisodesDrawer(false)}
-                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer active:scale-95 transition-all"
+                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer active:scale-95 transition-[transform,background-color,color]"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1336,7 +1336,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           <span className="text-xs font-bold text-slate-400">Nguồn phát:</span>
           <button
             onClick={() => setPlayMode('hls')}
-            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer border active:scale-95 active:duration-75 ${
+            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer border active:scale-95 active:duration-75 ${
               playMode === 'hls'
                 ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
                 : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
@@ -1346,7 +1346,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           </button>
           <button
             onClick={() => setPlayMode('embed')}
-            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-all cursor-pointer border active:scale-95 active:duration-75 ${
+            className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer border active:scale-95 active:duration-75 ${
               playMode === 'embed'
                 ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
                 : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
@@ -1373,7 +1373,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           {prevEp ? (
             <Link
               href={`/xem-phim/${movie.slug}/${prevEp.slug}`}
-              className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800/60 hover:bg-slate-800 text-xs font-bold text-slate-200 border border-slate-700/50 hover:border-slate-600 rounded-xl active:scale-95 transition-all duration-300 cursor-pointer"
+              prefetch={false}
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800/60 hover:bg-slate-800 text-xs font-bold text-slate-200 border border-slate-700/50 hover:border-slate-600 rounded-xl active:scale-95 transition-[transform,background-color,border-color,color] duration-300 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Tập trước</span>
@@ -1393,7 +1394,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           {nextEp ? (
             <Link
               href={`/xem-phim/${movie.slug}/${nextEp.slug}`}
-              className="flex items-center justify-center gap-1 px-3 py-2 bg-gradient-brand text-xs font-bold text-white rounded-xl shadow-lg hover:shadow-brand-rose/25 active:scale-95 transition-all duration-300 cursor-pointer"
+              prefetch={false}
+              className="flex items-center justify-center gap-1 px-3 py-2 bg-gradient-brand text-xs font-bold text-white rounded-xl shadow-lg hover:shadow-brand-rose/25 active:scale-95 transition-[transform,box-shadow] duration-300 cursor-pointer"
             >
               <span className="hidden sm:inline">Tập tiếp theo</span>
               <span className="inline sm:hidden">Tiếp</span>
@@ -1430,7 +1432,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 <button
                   key={server.server_name}
                   onClick={() => setSelectedServerIndex(idx)}
-                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition-all cursor-pointer whitespace-nowrap border active:scale-95 active:duration-75 ${
+                  className={`px-3 py-1.5 text-xs font-black rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer whitespace-nowrap border active:scale-95 active:duration-75 ${
                     selectedServerIndex === idx
                       ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
                       : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'

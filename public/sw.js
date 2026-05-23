@@ -1,9 +1,7 @@
 // Service Worker for Phim Hỏa Tốc PWA
 // Required to satisfy Chrome PWA installable criteria
 
-const CACHE_NAME = 'phimhoatoc-pwa-v1';
-
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -12,6 +10,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only handle page navigations. Let the browser handle video HLS segments,
+  // images, API calls, and static assets directly.
+  if (event.request.mode !== 'navigate') return;
+
   // Network-first strategy: always try network, no local caching
   // (image caching was explicitly removed per user request)
   event.respondWith(
