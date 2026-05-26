@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Phim Hỏa Tốc",
+    "slug": "phimhoatoc-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "phimhoatoc",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "dark"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#141414",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true,
+      "userInterfaceStyle": "dark",
+      "package": "com.hieu4tuoi.phimhoatocmobile"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-video",
+      "expo-image"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2786f212-3596-41ea-88de-65a1445476d4"
+      }
+    }
+  }
+}
