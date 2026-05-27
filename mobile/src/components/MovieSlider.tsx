@@ -1,15 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
+import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { ChevronRight } from 'lucide-react-native';
 import { MovieShort } from '../types';
 import MovieCard from './MovieCard';
 import { COLORS } from '../theme/colors';
+import PressableScale from './PressableScale';
 
 interface MovieSliderProps {
   title: string;
   movies: MovieShort[];
-  typeSlug?: string; // e.g. 'phim-moi-cap-nhat', 'phim-bo', 'phim-le', etc.
+  typeSlug?: string;
 }
 
 export default function MovieSlider({ title, movies, typeSlug }: MovieSliderProps) {
@@ -19,36 +20,36 @@ export default function MovieSlider({ title, movies, typeSlug }: MovieSliderProp
 
   const handleViewAll = () => {
     if (typeSlug) {
-      // Navigate to ExploreTab and pass type filter
-      navigation.navigate('ExploreTab', { type: typeSlug });
+      navigation.navigate('MainTabs', {
+        screen: 'SearchTab',
+        params: { typeFilter: typeSlug },
+      });
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Slider Header */}
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <View style={styles.accentBar} />
           <Text style={styles.title}>{title}</Text>
         </View>
-        
+
         {typeSlug && (
-          <Pressable onPress={handleViewAll} style={styles.viewAllButton}>
+          <PressableScale onPress={handleViewAll} style={styles.viewAllButton}>
             <Text style={styles.viewAllText}>Xem tất cả</Text>
             <ChevronRight size={14} color={COLORS.primary} />
-          </Pressable>
+          </PressableScale>
         )}
       </View>
 
-      {/* Horizontal FlatList */}
       <FlatList
         data={movies}
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item._id || item.slug}
         contentContainerStyle={styles.listContent}
-        snapToInterval={132 + 12} // width of card + margin
+        snapToInterval={132 + 12}
         decelerationRate="fast"
         renderItem={({ item }) => (
           <View style={styles.cardWrapper}>

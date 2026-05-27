@@ -105,7 +105,7 @@ export const isInWatchlist = (slug: string): boolean => {
 };
 
 // Periodic flush timer reference
-let flushTimer: NodeJS.Timeout | null = null;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const saveWatchProgress = (
   slug: string,

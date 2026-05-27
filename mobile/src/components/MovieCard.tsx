@@ -36,7 +36,14 @@ function MovieCardInner({ movie, width }: MovieCardProps) {
   const subText = formatLang(movie.lang || 'Vietsub');
 
   const handlePress = () => {
-    navigation.navigate('MovieDetail', { slug: movie.slug });
+    // Pass preview data so MovieDetailScreen can render header/poster instantly
+    // while the detail query is in-flight - avoids the "black flash" symptom.
+    navigation.navigate('MovieDetail', {
+      slug: movie.slug,
+      name: movie.name,
+      thumb_url: getImageUrl(movie.thumb_url || movie.poster_url),
+      poster_url: posterUrl,
+    });
   };
 
   return (

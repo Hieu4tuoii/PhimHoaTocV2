@@ -9,21 +9,25 @@ import {
   Modal,
   ScrollView,
   SafeAreaView,
+  StyleSheet as RNStyleSheet,
+  BackHandler,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Slider from '@react-native-community/slider';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import {
   Play,
   Pause,
   ArrowLeft,
   RotateCcw,
   RotateCw,
-  Maximize,
   Volume2,
   VolumeX,
   ListVideo,
@@ -33,18 +37,18 @@ import {
 } from 'lucide-react-native';
 
 import { COLORS } from '../theme/colors';
-import { getMovieDetail, getImageUrl } from '../services/api';
+import { getMovieDetail } from '../services/api';
 import {
   saveWatchProgress,
   getWatchProgress,
   flushWatchProgress,
-  useAppStore,
 } from '../store/useAppStore';
+import PressableScale from '../components/PressableScale';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function WatchScreen() {
-  useKeepAwake(); // Keep screen awake during playback
+  useKeepAwake();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const {
@@ -55,12 +59,10 @@ export default function WatchScreen() {
     episodeName: initialEpisodeName,
   } = route.params || {};
 
-  // Track current active episode in state for in-place switches
   const [currentEpisodeSlug, setCurrentEpisodeSlug] = useState(initialEpisodeSlug);
   const [currentEpisodeName, setCurrentEpisodeName] = useState(initialEpisodeName);
   const [selectedServerIndex, setSelectedServerIndex] = useState(0);
 
-  // UI Control states
   const [showControls, setShowControls] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
@@ -68,10 +70,14 @@ export default function WatchScreen() {
   const [showResumeIndicator, setShowResumeIndicator] = useState(false);
   const [playerError, setPlayerError] = useState(false);
 
+  // Scrubbing state - khi user kéo, không nhận update từ player
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubValue, setScrubValue] = useState(0);
+
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Force Landscape Orientation when entering Watch Screen
+  // Lock landscape on mount, restore on unmount
   useEffect(() => {
     async function lockLandscape() {
       try {
@@ -83,20 +89,14 @@ export default function WatchScreen() {
     lockLandscape();
 
     return () => {
-      // Revert to default portrait when leaving
-      async function resetOrientation() {
+      (async () => {
         try {
           await ScreenOrientation.unlockAsync();
         } catch (e) {
           console.warn('Failed to unlock orientation:', e);
         }
-      }
-      resetOrientation();
-
-      // Flush watch progress immediately to disk when leaving
+      })();
       flushWatchProgress();
-
-      // Clear intervals
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
         progressIntervalRef.current = null;
@@ -104,7 +104,24 @@ export default function WatchScreen() {
     };
   }, []);
 
-  // Fetch full movie details to get other servers and episodes
+  // Android hardware back: unlock orientation + goBack
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        (async () => {
+          try {
+            await ScreenOrientation.unlockAsync();
+          } catch {}
+          flushWatchProgress();
+          navigation.goBack();
+        })();
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => sub.remove();
+    }, [navigation])
+  );
+
   const detailQuery = useQuery({
     queryKey: ['watchMovieDetail', slug],
     queryFn: () => getMovieDetail(slug),
@@ -114,7 +131,6 @@ export default function WatchScreen() {
   const movieDetail = detailQuery.data?.movie || null;
   const episodesServers = detailQuery.data?.episodes || [];
 
-  // Find current server and current episode data
   const currentServer = episodesServers[selectedServerIndex];
   const episodesList = currentServer?.server_data || [];
   const currentEpisodeData = episodesList.find((ep: any) => ep.slug === currentEpisodeSlug);
@@ -123,126 +139,149 @@ export default function WatchScreen() {
   const prevEp = currentEpIndex > 0 ? episodesList[currentEpIndex - 1] : null;
   const nextEp = currentEpIndex < episodesList.length - 1 ? episodesList[currentEpIndex + 1] : null;
 
-  // Determine source streaming url
   const videoUrl = currentEpisodeData?.link_m3u8 || '';
   const embedUrl = currentEpisodeData?.link_embed || '';
   const isEmbedOnly = !videoUrl || videoUrl === '' || playerError;
 
-  // Initialize expo-video player
   const player = useVideoPlayer(videoUrl || 'about:blank', (playerInstance) => {
     playerInstance.loop = false;
+    try {
+      // Tăng tần suất update để progress bar mượt hơn
+      (playerInstance as any).timeUpdateEventInterval = 0.25;
+    } catch {}
     if (videoUrl) {
       playerInstance.play();
     }
   });
 
-  // Watch playback states from expo-video player
   const [isPlayingState, setIsPlayingState] = useState(false);
   const [currentTimeState, setCurrentTimeState] = useState(0);
   const [durationState, setDurationState] = useState(0);
 
-  // Poll-based time tracking (more reliable than event listeners across expo-video versions)
+  // Time tracking - try event-based first, fall back to polling
   useEffect(() => {
     if (!player || isEmbedOnly) return;
 
-    const interval = setInterval(() => {
+    let timeSub: any = null;
+    let playingSub: any = null;
+    let mutedSub: any = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const handleTime = () => {
       try {
-        const currentTime = player.currentTime || 0;
-        const duration = player.duration || 0;
-        const playing = player.playing;
-
-        setCurrentTimeState(currentTime);
-        setDurationState(duration);
-        setIsPlayingState(playing);
-
-        // Auto save progress
-        if (duration > 0 && currentTime > 5) {
+        const ct = player.currentTime || 0;
+        const d = player.duration || 0;
+        if (!isScrubbing) setCurrentTimeState(ct);
+        setDurationState(d);
+        if (d > 0 && ct > 5) {
           saveWatchProgress(
             slug,
             movieName,
             movieThumb,
             currentEpisodeSlug,
             currentEpisodeName,
-            currentTime,
-            duration
+            ct,
+            d
           );
         }
-      } catch (e) {
-        // Player may be disposed
-      }
-    }, 1000);
+      } catch {}
+    };
 
+    try {
+      timeSub = (player as any).addListener?.('timeUpdate', handleTime);
+      playingSub = (player as any).addListener?.('playingChange', (e: any) => {
+        const playing = typeof e === 'object' ? !!e.isPlaying : !!e;
+        setIsPlayingState(playing);
+      });
+      mutedSub = (player as any).addListener?.('mutedChange', (e: any) => {
+        const muted = typeof e === 'object' ? !!e.muted : !!e;
+        setIsMuted(muted);
+      });
+    } catch {}
+
+    // Polling fallback (also handles initial state)
+    interval = setInterval(() => {
+      try {
+        const ct = player.currentTime || 0;
+        const d = player.duration || 0;
+        if (!isScrubbing) setCurrentTimeState(ct);
+        setDurationState(d);
+        setIsPlayingState(player.playing);
+        if (d > 0 && ct > 5) {
+          saveWatchProgress(
+            slug,
+            movieName,
+            movieThumb,
+            currentEpisodeSlug,
+            currentEpisodeName,
+            ct,
+            d
+          );
+        }
+      } catch {}
+    }, 1000);
     progressIntervalRef.current = interval;
 
     return () => {
-      clearInterval(interval);
+      try { timeSub?.remove?.(); } catch {}
+      try { playingSub?.remove?.(); } catch {}
+      try { mutedSub?.remove?.(); } catch {}
+      if (interval) clearInterval(interval);
       progressIntervalRef.current = null;
     };
-  }, [player, isEmbedOnly, slug, currentEpisodeSlug, currentEpisodeName, movieName, movieThumb]);
+  }, [player, isEmbedOnly, slug, currentEpisodeSlug, currentEpisodeName, movieName, movieThumb, isScrubbing]);
 
-  // Handle error from player
+  // Status error -> embed fallback
   useEffect(() => {
     if (!player) return;
-
     try {
-      const errorSub = player.addListener('statusChange', (event: any) => {
+      const sub = (player as any).addListener?.('statusChange', (event: any) => {
         if (event.status === 'error' || event.error) {
           console.warn('Player error, falling back to WebView embed');
           setPlayerError(true);
         }
       });
-      return () => {
-        try { errorSub.remove(); } catch (e) {}
-      };
-    } catch (e) {
-      // Listener not supported in this version
-    }
+      return () => { try { sub?.remove?.(); } catch {} };
+    } catch {}
   }, [player]);
 
-  // Handle auto-seeking watch progress on load
   useEffect(() => {
     if (!player || isEmbedOnly) return;
-
-    // Reset seek status when switching episodes
     setHasSeekedToSavedTime(false);
     setShowResumeIndicator(false);
     setPlayerError(false);
   }, [currentEpisodeSlug]);
 
-  // Perform seek once duration is loaded
   useEffect(() => {
     if (!player || hasSeekedToSavedTime || durationState <= 0 || isEmbedOnly) return;
-
     const savedProgressTime = getWatchProgress(slug, currentEpisodeSlug);
     if (savedProgressTime > 10 && savedProgressTime < durationState - 10) {
-      try {
-        player.currentTime = savedProgressTime;
-      } catch (e) {}
+      try { player.currentTime = savedProgressTime; } catch {}
       setHasSeekedToSavedTime(true);
       setShowResumeIndicator(true);
-
-      // Hide Toast after 4 seconds
-      setTimeout(() => {
-        setShowResumeIndicator(false);
-      }, 4000);
+      setTimeout(() => setShowResumeIndicator(false), 4000);
     } else {
       setHasSeekedToSavedTime(true);
     }
   }, [durationState, player, hasSeekedToSavedTime, slug, currentEpisodeSlug, isEmbedOnly]);
 
-  // Controls Visibility Timeout Manager
   const triggerShowControls = useCallback(() => {
     setShowControls(true);
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    if (isPlayingState && !isScrubbing) {
+      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3500);
     }
+  }, [isPlayingState, isScrubbing]);
 
-    if (isPlayingState) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3500); // Auto hide after 3.5 seconds
+  const togglePlayerTap = useCallback(() => {
+    // Tap vào video: nếu controls ẩn → hiện; nếu đang hiện → ẩn
+    if (showControls) {
+      setShowControls(false);
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    } else {
+      triggerShowControls();
     }
-  }, [isPlayingState]);
+  }, [showControls, triggerShowControls]);
 
   useEffect(() => {
     triggerShowControls();
@@ -255,12 +294,9 @@ export default function WatchScreen() {
     triggerShowControls();
     if (!player) return;
     try {
-      if (isPlayingState) {
-        player.pause();
-      } else {
-        player.play();
-      }
-    } catch (e) {}
+      if (isPlayingState) player.pause();
+      else player.play();
+    } catch {}
   };
 
   const handleSkipBack = () => {
@@ -268,7 +304,7 @@ export default function WatchScreen() {
     if (!player) return;
     try {
       player.currentTime = Math.max(0, player.currentTime - 10);
-    } catch (e) {}
+    } catch {}
   };
 
   const handleSkipForward = () => {
@@ -276,37 +312,42 @@ export default function WatchScreen() {
     if (!player) return;
     try {
       player.currentTime = Math.min(durationState, player.currentTime + 10);
-    } catch (e) {}
+    } catch {}
   };
 
   const handleMuteToggle = () => {
     triggerShowControls();
     if (!player) return;
     try {
-      player.muted = !isMuted;
-      setIsMuted(!isMuted);
-    } catch (e) {}
+      const newMuted = !isMuted;
+      player.muted = newMuted;
+      setIsMuted(newMuted);
+    } catch {}
   };
 
   const handleEpisodeChange = (epSlug: string, epName: string) => {
-    // Flush current progress first
     flushWatchProgress();
-
-    // Switch episode details
     setCurrentEpisodeSlug(epSlug);
     setCurrentEpisodeName(epName);
     setShowEpisodesDrawer(false);
     setPlayerError(false);
   };
 
-  const formatTime = (timeInSeconds: number) => {
-    const mins = Math.floor(timeInSeconds / 60);
-    const secs = Math.floor(timeInSeconds % 60);
-    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const handleBack = async () => {
+    try { await ScreenOrientation.unlockAsync(); } catch {}
+    flushWatchProgress();
+    navigation.goBack();
   };
 
-  // Safe progress percentage calculator
-  const progressPct = durationState > 0 ? (currentTimeState / durationState) * 100 : 0;
+  const formatTime = (timeInSeconds: number) => {
+    if (!timeInSeconds || timeInSeconds < 0) timeInSeconds = 0;
+    const totalSec = Math.floor(timeInSeconds);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  };
 
   if (detailQuery.isLoading) {
     return (
@@ -317,26 +358,23 @@ export default function WatchScreen() {
     );
   }
 
+  const sliderValue = isScrubbing ? scrubValue : currentTimeState;
+
   return (
     <View style={styles.container}>
       {isEmbedOnly && embedUrl ? (
-        /* EMBED PLAYER FALLBACK USING SANDBOXED WEBVIEW */
         <View style={styles.webViewContainer}>
-          {/* Web header absolute to go back */}
           <SafeAreaView style={styles.backHeaderWebView}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backBtnCircle}>
+            <PressableScale onPress={handleBack} style={styles.backBtnCircle}>
               <ArrowLeft size={16} color="#FFFFFF" />
-            </Pressable>
+            </PressableScale>
             <Text style={styles.webViewEpText} numberOfLines={1}>
               {movieName} - Tập {currentEpisodeName}
             </Text>
-
-            {/* Episode drawer button */}
-            <Pressable onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
+            <PressableScale onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
               <ListVideo size={16} color="#FFFFFF" />
-            </Pressable>
+            </PressableScale>
           </SafeAreaView>
-
           <WebView
             source={{ uri: embedUrl }}
             allowsFullscreenVideo
@@ -348,41 +386,58 @@ export default function WatchScreen() {
           />
         </View>
       ) : (
-        /* NATIVE HLS PLAYER USING EXPO-VIDEO */
-        <Pressable onPress={triggerShowControls} style={styles.playerContainer}>
-          <VideoView
-            player={player}
-            nativeControls={false}
-            style={styles.videoView}
-          />
+        <View style={styles.playerContainer}>
+          <VideoView player={player} nativeControls={false} style={styles.videoView} />
 
-          {/* Toast Resume Progress Notification */}
+          {/* Transparent tap layer — toggles controls; bị ẩn off khi controls đang show
+              để các button con (top/center/bottom) nhận touch trực tiếp */}
+          {!showControls && (
+            <Pressable
+              style={RNStyleSheet.absoluteFill}
+              onPress={togglePlayerTap}
+            />
+          )}
+
+          {/* Resume toast */}
           {showResumeIndicator && (
-            <View style={styles.resumeToast}>
+            <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(250)} style={styles.resumeToast}>
               <Text style={styles.resumeToastText}>
                 Đang phát tiếp từ {formatTime(getWatchProgress(slug, currentEpisodeSlug))}...
               </Text>
-            </View>
+            </Animated.View>
           )}
 
-          {/* CONTROLS OVERLAY INTERACTION MASK */}
+          {/* Controls overlay — `pointerEvents='box-none'` để chỉ children nhận touch,
+              khoảng trống truyền touch xuống lớp tap layer dưới */}
           {showControls && (
-            <View style={styles.controlsMask}>
-              {/* Gradient dark headers & footers */}
+            <Animated.View
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(180)}
+              style={styles.controlsMask}
+              pointerEvents="box-none"
+            >
+              {/* Background tap layer - bao toàn bộ controlMask, tap vào không phải button → ẩn */}
+              <Pressable
+                style={RNStyleSheet.absoluteFill}
+                onPress={togglePlayerTap}
+              />
+
               <LinearGradient
                 colors={['rgba(0, 0, 0, 0.85)', 'rgba(0, 0, 0, 0.3)', 'transparent']}
                 style={styles.headerGradient}
+                pointerEvents="none"
               />
               <LinearGradient
                 colors={['transparent', 'rgba(0, 0, 0, 0.4)', 'rgba(0, 0, 0, 0.85)']}
                 style={styles.footerGradient}
+                pointerEvents="none"
               />
 
-              {/* 1. TOP BAR CONTROL */}
-              <View style={styles.topBar}>
-                <Pressable onPress={() => navigation.goBack()} style={styles.backBtnCircle}>
+              {/* TOP BAR */}
+              <View style={styles.topBar} pointerEvents="box-none">
+                <PressableScale onPress={handleBack} style={styles.backBtnCircle}>
                   <ArrowLeft size={18} color="#FFFFFF" />
-                </Pressable>
+                </PressableScale>
 
                 <View style={styles.topInfo}>
                   <Text style={styles.movieTitle} numberOfLines={1}>
@@ -393,113 +448,127 @@ export default function WatchScreen() {
                   </Text>
                 </View>
 
-                {/* Right controls */}
                 <View style={styles.topRightControls}>
-                  <Pressable onPress={handleMuteToggle} style={styles.iconBtn}>
+                  <PressableScale onPress={handleMuteToggle} style={styles.iconBtn}>
                     {isMuted ? (
                       <VolumeX size={18} color="#FFFFFF" />
                     ) : (
                       <Volume2 size={18} color="#FFFFFF" />
                     )}
-                  </Pressable>
+                  </PressableScale>
 
-                  <Pressable onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
+                  <PressableScale onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
                     <ListVideo size={18} color="#FFFFFF" />
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
 
-              {/* 2. CENTER PLAYBACK CONTROLS */}
-              <View style={styles.centerControls}>
-                {/* Prev Episode */}
-                <Pressable
+              {/* CENTER PLAYBACK CONTROLS */}
+              <View style={styles.centerControls} pointerEvents="box-none">
+                <PressableScale
                   disabled={!prevEp}
                   onPress={() => prevEp && handleEpisodeChange(prevEp.slug, prevEp.name)}
                   style={[styles.skipBtn, !prevEp && styles.skipBtnDisabled]}
                 >
                   <ChevronLeft size={24} color={prevEp ? '#FFFFFF' : COLORS.zinc600} />
-                </Pressable>
+                </PressableScale>
 
-                {/* Seek Back 10s */}
-                <Pressable onPress={handleSkipBack} style={styles.centerBtn}>
+                <PressableScale onPress={handleSkipBack} style={styles.centerBtn}>
                   <RotateCcw size={22} color="#FFFFFF" />
-                </Pressable>
+                </PressableScale>
 
-                {/* Play / Pause */}
-                <Pressable onPress={handlePlayPause} style={styles.playPauseBtn}>
-                  {isPlayingState ? (
-                    <Pause size={24} color="#FFFFFF" fill="#FFFFFF" />
-                  ) : (
-                    <Play size={24} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 3 }} />
-                  )}
-                </Pressable>
+                <PressableScale onPress={handlePlayPause} style={styles.playPauseBtn}>
+                  <LinearGradient
+                    colors={[COLORS.primary, '#C11119']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.playPauseGradient}
+                  >
+                    {isPlayingState ? (
+                      <Pause size={26} color="#FFFFFF" fill="#FFFFFF" />
+                    ) : (
+                      <Play size={26} color="#FFFFFF" fill="#FFFFFF" style={{ marginLeft: 3 }} />
+                    )}
+                  </LinearGradient>
+                </PressableScale>
 
-                {/* Seek Forward 10s */}
-                <Pressable onPress={handleSkipForward} style={styles.centerBtn}>
+                <PressableScale onPress={handleSkipForward} style={styles.centerBtn}>
                   <RotateCw size={22} color="#FFFFFF" />
-                </Pressable>
+                </PressableScale>
 
-                {/* Next Episode */}
-                <Pressable
+                <PressableScale
                   disabled={!nextEp}
                   onPress={() => nextEp && handleEpisodeChange(nextEp.slug, nextEp.name)}
                   style={[styles.skipBtn, !nextEp && styles.skipBtnDisabled]}
                 >
                   <ChevronRight size={24} color={nextEp ? '#FFFFFF' : COLORS.zinc600} />
-                </Pressable>
+                </PressableScale>
               </View>
 
-              {/* 3. BOTTOM TIMELINE CONTROLS */}
-              <View style={styles.bottomBar}>
-                {/* Time indicators */}
-                <Text style={styles.timeText}>{formatTime(currentTimeState)}</Text>
+              {/* BOTTOM TIMELINE - blur background to differentiate from gradient */}
+              <View style={styles.bottomBar} pointerEvents="box-none">
+                <BlurView
+                  tint="dark"
+                  intensity={20}
+                  style={[RNStyleSheet.absoluteFill, { borderRadius: 12 }]}
+                  pointerEvents="none"
+                />
+                <Text style={styles.timeText}>{formatTime(sliderValue)}</Text>
 
-                {/* Premium Seekbar Timeline */}
-                <View style={styles.timelineContainer}>
-                  <View style={styles.timelineBg} />
-                  <View style={[styles.timelineFill, { width: `${Math.min(progressPct, 100)}%` as any }]} />
-                  <View style={[styles.timelineThumb, { left: `${Math.min(progressPct, 100)}%` as any }]} />
-                </View>
+                <Slider
+                  style={styles.slider}
+                  value={sliderValue}
+                  minimumValue={0}
+                  maximumValue={Math.max(durationState, 1)}
+                  step={0.1}
+                  minimumTrackTintColor={COLORS.primary}
+                  maximumTrackTintColor="rgba(255,255,255,0.25)"
+                  thumbTintColor={COLORS.primary}
+                  onSlidingStart={() => {
+                    setIsScrubbing(true);
+                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                  }}
+                  onValueChange={(v) => setScrubValue(v)}
+                  onSlidingComplete={(v) => {
+                    try {
+                      if (player) player.currentTime = v;
+                    } catch {}
+                    setCurrentTimeState(v);
+                    setIsScrubbing(false);
+                    triggerShowControls();
+                  }}
+                />
 
                 <Text style={styles.timeText}>{formatTime(durationState)}</Text>
-
-                {/* Fullscreen decoration */}
-                <Pressable style={styles.fullscreenBtn}>
-                  <Maximize size={14} color="#FFFFFF" />
-                </Pressable>
               </View>
-            </View>
+            </Animated.View>
           )}
-        </Pressable>
+        </View>
       )}
 
-      {/* 4. MODAL EPISODE SELECTOR DRAWER */}
+      {/* EPISODES DRAWER */}
       <Modal
         visible={showEpisodesDrawer}
         transparent
         animationType="fade"
         onRequestClose={() => setShowEpisodesDrawer(false)}
       >
-        <Pressable
-          style={styles.drawerOverlay}
-          onPress={() => setShowEpisodesDrawer(false)}
-        >
+        <Pressable style={styles.drawerOverlay} onPress={() => setShowEpisodesDrawer(false)}>
           <View style={styles.drawerWrapper} onStartShouldSetResponder={() => true}>
             <View style={styles.drawerHeader}>
               <Text style={styles.drawerTitle}>DANH SÁCH TẬP PHIM</Text>
-              <Pressable
+              <PressableScale
                 onPress={() => setShowEpisodesDrawer(false)}
                 style={styles.drawerCloseBtn}
               >
                 <X size={16} color="#FFFFFF" />
-              </Pressable>
+              </PressableScale>
             </View>
 
-            {/* Server tabs in drawer */}
             {episodesServers.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.drawerServerScroll}>
                 {episodesServers.map((server: any, idx: number) => (
-                  <Pressable
+                  <PressableScale
                     key={server.server_name}
                     onPress={() => setSelectedServerIndex(idx)}
                     style={[
@@ -515,17 +584,16 @@ export default function WatchScreen() {
                     >
                       {server.server_name}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 ))}
               </ScrollView>
             )}
 
-            {/* Episodes List inside drawer */}
             <ScrollView contentContainerStyle={styles.drawerEpisodesGrid}>
               {episodesList.map((ep: any) => {
                 const isActive = ep.slug === currentEpisodeSlug;
                 return (
-                  <Pressable
+                  <PressableScale
                     key={ep.slug}
                     onPress={() => handleEpisodeChange(ep.slug, ep.name)}
                     style={[
@@ -541,7 +609,7 @@ export default function WatchScreen() {
                     >
                       Tập {ep.name}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 );
               })}
             </ScrollView>
@@ -605,13 +673,13 @@ const styles = StyleSheet.create({
   },
   resumeToast: {
     position: 'absolute',
-    bottom: 50,
-    left: 20,
-    backgroundColor: 'rgba(20, 20, 20, 0.9)',
+    bottom: 80,
+    left: 24,
+    backgroundColor: 'rgba(20, 20, 20, 0.92)',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -622,7 +690,7 @@ const styles = StyleSheet.create({
   },
   resumeToastText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
   },
   controlsMask: {
@@ -632,7 +700,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     zIndex: 10,
   },
   headerGradient: {
@@ -640,14 +709,14 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 70,
+    height: 80,
   },
   footerGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
+    height: 90,
   },
   topBar: {
     flexDirection: 'row',
@@ -655,10 +724,10 @@ const styles = StyleSheet.create({
     zIndex: 11,
   },
   backBtnCircle: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 99,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -683,10 +752,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: 99,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -694,43 +763,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
+    gap: 26,
     position: 'absolute',
     left: 0,
     right: 0,
-    top: '44%',
+    top: '40%',
     zIndex: 11,
   },
   playPauseBtn: {
-    width: 50,
-    height: 50,
+    width: 64,
+    height: 64,
     borderRadius: 99,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
     shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  playPauseGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 99,
   },
   centerBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 99,
-    backgroundColor: 'rgba(20, 20, 20, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   skipBtn: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     borderRadius: 99,
-    backgroundColor: 'rgba(20, 20, 20, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -740,59 +813,32 @@ const styles = StyleSheet.create({
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     zIndex: 11,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   timeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 'bold',
-    width: 36,
+    width: 50,
     textAlign: 'center',
   },
-  timelineContainer: {
+  slider: {
     flex: 1,
-    height: 12,
-    justifyContent: 'center',
-    position: 'relative',
+    height: 36,
   },
-  timelineBg: {
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 99,
-  },
-  timelineFill: {
-    position: 'absolute',
-    height: 3,
-    backgroundColor: COLORS.primary,
-    borderRadius: 99,
-  },
-  timelineThumb: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 99,
-    backgroundColor: COLORS.primary,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    marginLeft: -5,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 3,
-  },
-  fullscreenBtn: {
-    padding: 6,
-  },
-  // Modal Drawer Styles
   drawerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-    flexDirection: 'row', // Horizontal overlay for Landscape view!
+    flexDirection: 'row',
   },
   drawerWrapper: {
-    width: '40%', // Take 40% screen width in Landscape mode
+    width: '45%',
     height: '100%',
     backgroundColor: '#0F0F0F',
     borderLeftWidth: 1,
@@ -817,13 +863,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   drawerServerScroll: {
-    maxHeight: 32,
+    maxHeight: 36,
     marginVertical: 10,
   },
   drawerServerTab: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 6,
     marginRight: 6,
   },
@@ -832,7 +878,7 @@ const styles = StyleSheet.create({
   },
   drawerServerTabText: {
     color: COLORS.zinc400,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: 'bold',
   },
   drawerServerTabTextActive: {

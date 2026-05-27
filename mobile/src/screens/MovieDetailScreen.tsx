@@ -7,36 +7,39 @@ import {
   Pressable,
   Dimensions,
   SafeAreaView,
-  TextInput,
-  Keyboard,
-  ActivityIndicator,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Heart, Play, ChevronDown, ChevronUp, ArrowLeft, Star, Clock, Film, Send, User } from 'lucide-react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Heart, Play, ChevronDown, ChevronUp, ArrowLeft, Star, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS } from '../theme/colors';
 import { RootStackParamList } from '../../App';
 import { getMovieDetail, getMoviesByGenre, getImageUrl } from '../services/api';
 import { useAppStore, getMovieLastWatchedEpisode } from '../store/useAppStore';
-import { getMovieComments, addMovieComment, CommentItem } from '../services/comments';
 import MoviePoster from '../components/MoviePoster';
 import MovieSlider from '../components/MovieSlider';
 import { SkeletonDetail } from '../components/SkeletonLoader';
+import PressableScale from '../components/PressableScale';
 import { MovieShort } from '../types';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const EPISODE_GAP = 10;
+const EPISODE_COLUMNS = 4;
+const EPISODE_PAD = 16 * 2 + 16 * 2; // card padding + horizontal screen padding
+const EPISODE_BTN_WIDTH = (SCREEN_WIDTH - EPISODE_PAD - EPISODE_GAP * (EPISODE_COLUMNS - 1)) / EPISODE_COLUMNS;
+const EPISODE_GRID_MAX_HEIGHT = 280;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MovieDetail'>;
 
 export default function MovieDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const { slug } = route.params || {};
+  const { slug, name: previewName, thumb_url: previewThumb, poster_url: previewPoster } = route.params || {};
 
-  // Store subscription
   const watchlist = useAppStore((state) => state.watchlist);
   const history = useAppStore((state) => state.history);
   const addToWatchlist = useAppStore((state) => state.addToWatchlist);
@@ -47,33 +50,12 @@ export default function MovieDetailScreen() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedServerIndex, setSelectedServerIndex] = useState(0);
 
-  // Comment States
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [commentName, setCommentName] = useState('');
-  const [commentContent, setCommentContent] = useState('');
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-
-  // Load comments
-  useEffect(() => {
-    async function loadComments() {
-      const list = await getMovieComments(slug);
-      setComments(list);
-    }
-    loadComments();
-  }, [slug]);
-
-  // Sync state with store changes
   useEffect(() => {
     setIsFavorite(watchlist.some((m) => m.slug === slug));
     const watchedInfo = getMovieLastWatchedEpisode(slug);
-    if (watchedInfo) {
-      setLastWatched(watchedInfo);
-    } else {
-      setLastWatched(null);
-    }
+    setLastWatched(watchedInfo || null);
   }, [watchlist, history, slug]);
 
-  // Fetch movie details
   const detailQuery = useQuery({
     queryKey: ['movieDetail', slug],
     queryFn: () => getMovieDetail(slug),
@@ -83,7 +65,6 @@ export default function MovieDetailScreen() {
   const movie = detailQuery.data?.movie || null;
   const episodes = detailQuery.data?.episodes || [];
 
-  // Fetch related movies based on the first genre category
   const firstGenreSlug = movie?.category?.[0]?.slug;
   const relatedQuery = useQuery({
     queryKey: ['relatedMovies', firstGenreSlug],
@@ -91,7 +72,12 @@ export default function MovieDetailScreen() {
     enabled: !!firstGenreSlug,
   });
 
+  // Trong khi query loading, render header + poster + tên ngay từ params nếu có,
+  // skeleton cho phần body. Tránh black flash hoàn toàn.
   if (detailQuery.isLoading) {
+    if (previewName || previewThumb || previewPoster) {
+      return <PreviewSkeleton previewName={previewName} previewThumb={previewThumb} previewPoster={previewPoster} onBack={() => navigation.goBack()} />;
+    }
     return <SkeletonDetail />;
   }
 
@@ -99,24 +85,12 @@ export default function MovieDetailScreen() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Không tìm thấy phim yêu cầu.</Text>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>Quay lại</Text>
-        </Pressable>
+        </PressableScale>
       </View>
     );
   }
-
-  const handleSendComment = async () => {
-    if (!commentName.trim() || !commentContent.trim()) return;
-    setIsSubmittingComment(true);
-    const newComment = await addMovieComment(slug, commentName, commentContent);
-    if (newComment) {
-      setComments((prev) => [newComment, ...prev]);
-      setCommentContent('');
-      Keyboard.dismiss();
-    }
-    setIsSubmittingComment(false);
-  };
 
   const handleFavoriteToggle = () => {
     const movieShort: MovieShort = {
@@ -139,7 +113,6 @@ export default function MovieDetailScreen() {
     }
   };
 
-  // Determine watch link params
   const activeServer = episodes[selectedServerIndex];
   const firstEpisode = activeServer?.server_data?.[0];
 
@@ -161,21 +134,24 @@ export default function MovieDetailScreen() {
       }
     : null;
 
-  const progressPercentage = (lastWatched && lastWatched.duration > 0)
-    ? Math.min(Math.round((lastWatched.currentTime / lastWatched.duration) * 100), 100)
-    : 0;
+  const progressPercentage =
+    lastWatched && lastWatched.duration > 0
+      ? Math.min(Math.round((lastWatched.currentTime / lastWatched.duration) * 100), 100)
+      : 0;
 
   return (
     <View style={styles.container}>
-      {/* Absolute Back Header Button */}
       <SafeAreaView style={styles.headerAbsolute}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.circleButton}>
+        <PressableScale onPress={() => navigation.goBack()} style={styles.circleButton}>
           <ArrowLeft size={20} color="#FFFFFF" />
-        </Pressable>
+        </PressableScale>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* 1. BACKDROP BANNER */}
+      <Animated.ScrollView
+        entering={FadeIn.duration(250)}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.backdropContainer}>
           <MoviePoster
             url={getImageUrl(movie.thumb_url || movie.poster_url)}
@@ -187,8 +163,7 @@ export default function MovieDetailScreen() {
           />
         </View>
 
-        {/* 2. POSTER OVERLAY & DETAILS */}
-        <View style={styles.mainInfoSection}>
+        <Animated.View entering={FadeInDown.duration(400).delay(80)} style={styles.mainInfoSection}>
           <View style={styles.posterColumn}>
             <View style={styles.posterCard}>
               <MoviePoster url={getImageUrl(movie.poster_url)} />
@@ -239,12 +214,11 @@ export default function MovieDetailScreen() {
               </Text>
             ) : null}
           </View>
-        </View>
+        </Animated.View>
 
-        {/* 3. CTA PLAY / FAVORITE BUTTONS */}
-        <View style={styles.ctaContainer}>
+        <Animated.View entering={FadeInDown.duration(400).delay(120)} style={styles.ctaContainer}>
           {watchParams ? (
-            <Pressable
+            <PressableScale
               onPress={() => navigation.navigate('Watch', watchParams)}
               style={styles.watchBtn}
             >
@@ -263,25 +237,28 @@ export default function MovieDetailScreen() {
                   </View>
                 </View>
               )}
-            </Pressable>
+            </PressableScale>
           ) : (
             <View style={[styles.watchBtn, styles.disabledBtn]}>
               <Text style={styles.disabledText}>PHIM ĐANG CẬP NHẬT</Text>
             </View>
           )}
 
-          <Pressable
+          <PressableScale
             onPress={handleFavoriteToggle}
             style={[styles.favBtn, isFavorite && styles.favBtnActive]}
           >
-            <Heart size={16} color={isFavorite ? COLORS.primary : '#FFFFFF'} fill={isFavorite ? COLORS.primary : 'transparent'} />
+            <Heart
+              size={16}
+              color={isFavorite ? COLORS.primary : '#FFFFFF'}
+              fill={isFavorite ? COLORS.primary : 'transparent'}
+            />
             <Text style={[styles.favBtnText, isFavorite && styles.favBtnTextActive]}>
               {isFavorite ? 'Đã yêu thích' : 'Yêu thích'}
             </Text>
-          </Pressable>
-        </View>
+          </PressableScale>
+        </Animated.View>
 
-        {/* 4. SYNOPSIS */}
         <View style={styles.synopsisCard}>
           <View style={styles.sectionHeader}>
             <View style={styles.accentBar} />
@@ -306,7 +283,6 @@ export default function MovieDetailScreen() {
           )}
         </View>
 
-        {/* 5. EPISODE SELECTOR */}
         {episodes.length > 0 ? (
           <View style={styles.episodesCard}>
             <View style={styles.episodesHeader}>
@@ -315,11 +291,14 @@ export default function MovieDetailScreen() {
                 <Text style={styles.sectionTitle}>CHỌN TẬP PHIM</Text>
               </View>
 
-              {/* Server selector tabs */}
               {episodes.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.serverTabs}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.serverTabs}
+                >
                   {episodes.map((server: any, idx: number) => (
-                    <Pressable
+                    <PressableScale
                       key={server.server_name}
                       onPress={() => setSelectedServerIndex(idx)}
                       style={[
@@ -335,49 +314,61 @@ export default function MovieDetailScreen() {
                       >
                         {server.server_name}
                       </Text>
-                    </Pressable>
+                    </PressableScale>
                   ))}
                 </ScrollView>
               )}
             </View>
 
-            {/* Grid of episodes */}
-            <View style={styles.episodesGrid}>
-              {activeServer?.server_data.map((ep: any) => {
-                const isWatched = history.some(
-                  (h) => h.slug === movie.slug && h.episodeSlug === ep.slug
-                );
+            {/* Episode grid with constrained height + nested scroll - mirror web max-h-72 overflow-y-auto */}
+            <ScrollView
+              style={styles.episodesScroll}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.episodesGrid}>
+                {activeServer?.server_data.map((ep: any) => {
+                  const isWatched = history.some(
+                    (h) => h.slug === movie.slug && h.episodeSlug === ep.slug
+                  );
+                  const isLastWatched =
+                    lastWatched &&
+                    lastWatched.episodeSlug === ep.slug &&
+                    lastWatched.slug === movie.slug;
 
-                return (
-                  <Pressable
-                    key={ep.slug}
-                    onPress={() =>
-                      navigation.navigate('Watch', {
-                        slug: movie.slug,
-                        movieName: movie.name,
-                        movieThumb: getImageUrl(movie.thumb_url || movie.poster_url),
-                        episodeSlug: ep.slug,
-                        episodeName: ep.name,
-                      })
-                    }
-                    style={[
-                      styles.episodeBtn,
-                      isWatched && styles.episodeBtnWatched,
-                    ]}
-                  >
-                    <Text
+                  return (
+                    <PressableScale
+                      key={ep.slug}
+                      onPress={() =>
+                        navigation.navigate('Watch', {
+                          slug: movie.slug,
+                          movieName: movie.name,
+                          movieThumb: getImageUrl(movie.thumb_url || movie.poster_url),
+                          episodeSlug: ep.slug,
+                          episodeName: ep.name,
+                        })
+                      }
                       style={[
-                        styles.episodeText,
-                        isWatched && styles.episodeTextWatched,
+                        styles.episodeBtn,
+                        isWatched && styles.episodeBtnWatched,
+                        isLastWatched && styles.episodeBtnLastWatched,
                       ]}
-                      numberOfLines={1}
                     >
-                      {ep.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.episodeText,
+                          isWatched && styles.episodeTextWatched,
+                          isLastWatched && styles.episodeTextLastWatched,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {ep.name}
+                      </Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            </ScrollView>
           </View>
         ) : (
           <View style={styles.noEpisodesCard}>
@@ -387,87 +378,6 @@ export default function MovieDetailScreen() {
           </View>
         )}
 
-        {/* 6. COMMENTS SECTION */}
-        <View style={styles.commentsCard}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.accentBar} />
-            <Text style={styles.sectionTitle}>BÌNH LUẬN THẢO LUẬN ({comments.length})</Text>
-          </View>
-
-          {/* Comment input form */}
-          <View style={styles.commentForm}>
-            <View style={styles.commentInputRow}>
-              <User size={12} color={COLORS.zinc400} style={styles.inputIcon} />
-              <TextInput
-                placeholder="Tên của bạn..."
-                placeholderTextColor={COLORS.zinc500}
-                value={commentName}
-                onChangeText={setCommentName}
-                style={styles.nameInput}
-              />
-            </View>
-
-            <View style={styles.commentContentRow}>
-              <TextInput
-                placeholder="Nhập nội dung bình luận phim..."
-                placeholderTextColor={COLORS.zinc500}
-                value={commentContent}
-                onChangeText={setCommentContent}
-                multiline
-                numberOfLines={2}
-                style={styles.contentInput}
-              />
-              <Pressable
-                onPress={handleSendComment}
-                disabled={isSubmittingComment || commentName.trim() === '' || commentContent.trim() === ''}
-                style={({ pressed }) => [
-                  styles.sendBtn,
-                  (commentName.trim() === '' || commentContent.trim() === '') && styles.sendBtnDisabled,
-                  pressed && styles.sendBtnPressed,
-                ]}
-              >
-                {isSubmittingComment ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Send size={12} color="#FFFFFF" />
-                )}
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Comments List */}
-          {comments.length > 0 ? (
-            <View style={styles.commentsList}>
-              {comments.slice(0, 5).map((item) => (
-                <View key={item.id} style={styles.commentItem}>
-                  {/* Avatar bubble */}
-                  <View style={[styles.avatarBubble, { backgroundColor: item.avatarColor }]}>
-                    <Text style={styles.avatarText}>
-                      {item.author.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-
-                  {/* Comment Details */}
-                  <View style={styles.commentDetails}>
-                    <View style={styles.commentMeta}>
-                      <Text style={styles.commentAuthor}>{item.author}</Text>
-                      <Text style={styles.commentTime}>Vừa xong</Text>
-                    </View>
-                    <Text style={styles.commentContentText}>{item.content}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.noComments}>
-              <Text style={styles.noCommentsText}>
-                Chưa có bình luận nào. Hãy là người đầu tiên chia sẻ cảm xúc về bộ phim!
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* 7. RELATED MOVIES CAROUSEL */}
         {firstGenreSlug && relatedQuery.data?.items && (
           <View style={styles.relatedContainer}>
             <MovieSlider
@@ -477,7 +387,56 @@ export default function MovieDetailScreen() {
             />
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
+    </View>
+  );
+}
+
+// Render header/poster ngay từ nav params trong khi data thực đang load
+function PreviewSkeleton({
+  previewName,
+  previewThumb,
+  previewPoster,
+  onBack,
+}: {
+  previewName?: string;
+  previewThumb?: string;
+  previewPoster?: string;
+  onBack: () => void;
+}) {
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={styles.headerAbsolute}>
+        <PressableScale onPress={onBack} style={styles.circleButton}>
+          <ArrowLeft size={20} color="#FFFFFF" />
+        </PressableScale>
+      </SafeAreaView>
+
+      <View style={styles.backdropContainer}>
+        {previewThumb ? (
+          <MoviePoster url={previewThumb} style={styles.backdrop} />
+        ) : null}
+        <LinearGradient
+          colors={['rgba(20, 20, 20, 0)', 'rgba(20, 20, 20, 0.5)', '#141414']}
+          style={styles.backdropMask}
+        />
+      </View>
+
+      <View style={styles.mainInfoSection}>
+        <View style={styles.posterColumn}>
+          <View style={styles.posterCard}>
+            {previewPoster ? <MoviePoster url={previewPoster} /> : null}
+          </View>
+        </View>
+        <View style={styles.detailsColumn}>
+          {previewName ? (
+            <Text style={styles.title} numberOfLines={2}>
+              {previewName}
+            </Text>
+          ) : null}
+          <Text style={styles.originTitle}>Đang tải thông tin phim...</Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -551,7 +510,7 @@ const styles = StyleSheet.create({
   mainInfoSection: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    marginTop: -80, // overlay onto banner gradient mask
+    marginTop: -80,
     gap: 16,
     zIndex: 10,
   },
@@ -823,13 +782,16 @@ const styles = StyleSheet.create({
   serverTabTextActive: {
     color: '#FFFFFF',
   },
+  episodesScroll: {
+    maxHeight: EPISODE_GRID_MAX_HEIGHT,
+  },
   episodesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: EPISODE_GAP,
   },
   episodeBtn: {
-    width: (SCREEN_WIDTH - 64 - 20) / 3, // 3 columns
+    width: EPISODE_BTN_WIDTH,
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.05)',
@@ -842,6 +804,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderColor: 'rgba(229, 9, 20, 0.4)',
   },
+  episodeBtnLastWatched: {
+    backgroundColor: 'rgba(229, 9, 20, 0.15)',
+    borderColor: COLORS.primary,
+  },
   episodeText: {
     color: COLORS.zinc200,
     fontSize: 12,
@@ -849,6 +815,9 @@ const styles = StyleSheet.create({
   },
   episodeTextWatched: {
     color: COLORS.primary,
+  },
+  episodeTextLastWatched: {
+    color: '#FFFFFF',
   },
   noEpisodesCard: {
     padding: 24,
@@ -868,132 +837,5 @@ const styles = StyleSheet.create({
   },
   relatedContainer: {
     marginTop: 8,
-  },
-  commentsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  commentForm: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    gap: 8,
-  },
-  commentInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#141414',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 36,
-  },
-  inputIcon: {
-    marginRight: 6,
-  },
-  nameInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 12,
-    paddingVertical: 0,
-  },
-  commentContentRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-end',
-  },
-  contentInput: {
-    flex: 1,
-    backgroundColor: '#141414',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    color: '#FFFFFF',
-    fontSize: 12,
-    height: 50,
-    textAlignVertical: 'top',
-  },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendBtnDisabled: {
-    backgroundColor: COLORS.zinc600,
-    opacity: 0.5,
-  },
-  sendBtnPressed: {
-    transform: [{ scale: 0.95 }],
-  },
-  commentsList: {
-    gap: 12,
-    marginTop: 4,
-  },
-  commentItem: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    borderBottomWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.03)',
-    paddingBottom: 10,
-  },
-  avatarBubble: {
-    width: 32,
-    height: 32,
-    borderRadius: 99,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  commentDetails: {
-    flex: 1,
-    gap: 2,
-  },
-  commentMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  commentAuthor: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  commentTime: {
-    color: COLORS.zinc500,
-    fontSize: 9,
-  },
-  commentContentText: {
-    color: COLORS.zinc300,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  noComments: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  noCommentsText: {
-    color: COLORS.zinc500,
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 16,
   },
 });

@@ -5,15 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  Pressable,
   Dimensions,
-  ActivityIndicator,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Play, Info, Flame, Star, Clock, Calendar } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { COLORS } from '../theme/colors';
 import { RootStackParamList } from '../../App';
@@ -25,9 +24,10 @@ import {
 } from '../services/api';
 import MovieSlider from '../components/MovieSlider';
 import MoviePoster from '../components/MoviePoster';
-import { SkeletonItem } from '../components/SkeletonLoader';
+import { SkeletonItem, SkeletonSlider } from '../components/SkeletonLoader';
+import PressableScale from '../components/PressableScale';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
 
@@ -35,7 +35,6 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Queries
   const newUpdatesQuery = useQuery({
     queryKey: ['newUpdates'],
     queryFn: () => getNewUpdates(1),
@@ -61,7 +60,6 @@ export default function HomeScreen() {
     queryFn: () => getMoviesByType('tv-shows', 1, 12),
   });
 
-  // Hero movie resolution: Get first item of new updates, then fetch details
   const heroShort = newUpdatesQuery.data?.items?.[0];
   const heroDetailQuery = useQuery({
     queryKey: ['movieDetail', heroShort?.slug],
@@ -70,8 +68,10 @@ export default function HomeScreen() {
   });
 
   const heroMovie = heroDetailQuery.data?.movie || null;
-  const firstEpisodeSlug = heroDetailQuery.data?.episodes?.[0]?.server_data?.[0]?.slug || 'tap-1';
-  const firstEpisodeName = heroDetailQuery.data?.episodes?.[0]?.server_data?.[0]?.name || 'Tập 1';
+  const firstEpisodeSlug =
+    heroDetailQuery.data?.episodes?.[0]?.server_data?.[0]?.slug || 'tap-1';
+  const firstEpisodeName =
+    heroDetailQuery.data?.episodes?.[0]?.server_data?.[0]?.name || 'Tập 1';
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -82,9 +82,7 @@ export default function HomeScreen() {
       animeQuery.refetch(),
       tvShowsQuery.refetch(),
     ]);
-    if (heroShort?.slug) {
-      await heroDetailQuery.refetch();
-    }
+    if (heroShort?.slug) await heroDetailQuery.refetch();
     setRefreshing(false);
   };
 
@@ -102,26 +100,14 @@ export default function HomeScreen() {
 
   const handleHeroDetail = () => {
     if (heroMovie) {
-      navigation.navigate('MovieDetail', { slug: heroMovie.slug });
+      navigation.navigate('MovieDetail', {
+        slug: heroMovie.slug,
+        name: heroMovie.name,
+        thumb_url: getImageUrl(heroMovie.thumb_url || heroMovie.poster_url),
+        poster_url: getImageUrl(heroMovie.poster_url || heroMovie.thumb_url),
+      });
     }
   };
-
-  const isLoadingInitial =
-    newUpdatesQuery.isLoading ||
-    seriesQuery.isLoading ||
-    singleQuery.isLoading ||
-    animeQuery.isLoading ||
-    tvShowsQuery.isLoading;
-
-  if (isLoadingInitial) {
-    return (
-      <View style={styles.loadingContainer}>
-        {/* Simulating smooth premium initial load */}
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>ĐANG TẢI PHIM HỎA TỐC...</Text>
-      </View>
-    );
-  }
 
   return (
     <ScrollView
@@ -133,27 +119,23 @@ export default function HomeScreen() {
           onRefresh={onRefresh}
           tintColor={COLORS.primary}
           colors={[COLORS.primary]}
-          backgroundColor={COLORS.background}
         />
       }
     >
-      {/* 1. HERO BANNER */}
+      {/* HERO BANNER */}
       {heroMovie ? (
-        <View style={styles.heroContainer}>
+        <Animated.View entering={FadeIn.duration(400)} style={styles.heroContainer}>
           <MoviePoster
             url={getImageUrl(heroMovie.thumb_url || heroMovie.poster_url)}
             style={styles.heroImage}
           />
-          
-          {/* Black gradient mask overlays */}
+
           <LinearGradient
             colors={['rgba(20, 20, 20, 0)', 'rgba(20, 20, 20, 0.4)', 'rgba(20, 20, 20, 0.95)', '#141414']}
             style={styles.heroGradient}
           />
 
-          {/* Floating Info Overlay */}
-          <View style={styles.heroContent}>
-            {/* Badges */}
+          <Animated.View entering={FadeInDown.duration(500).delay(120)} style={styles.heroContent}>
             <View style={styles.badgeRow}>
               <View style={styles.flameBadge}>
                 <Flame size={12} color="#FFFFFF" style={styles.flameIcon} />
@@ -167,7 +149,6 @@ export default function HomeScreen() {
                 ))}
             </View>
 
-            {/* Title */}
             <Text style={styles.heroTitle} numberOfLines={2}>
               {heroMovie.name}
             </Text>
@@ -175,7 +156,6 @@ export default function HomeScreen() {
               {heroMovie.origin_name} ({heroMovie.year})
             </Text>
 
-            {/* Quick Meta */}
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
                 <Star size={14} color="#FBBF24" fill="#FBBF24" />
@@ -197,66 +177,60 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {/* Synopsis Description */}
             <Text style={styles.heroDescription} numberOfLines={2}>
               {heroMovie.content
                 ? heroMovie.content.replace(/<[^>]*>/g, '')
                 : 'Không có mô tả nội dung cho bộ phim này.'}
             </Text>
 
-            {/* CTA Buttons */}
             <View style={styles.buttonRow}>
-              <Pressable onPress={handleWatchHero} style={styles.playButton}>
+              <PressableScale onPress={handleWatchHero} style={styles.playButton}>
                 <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
                 <Text style={styles.playButtonText}>Xem phim</Text>
-              </Pressable>
-              
-              <Pressable onPress={handleHeroDetail} style={styles.infoButton}>
+              </PressableScale>
+
+              <PressableScale onPress={handleHeroDetail} style={styles.infoButton}>
                 <Info size={16} color="#FFFFFF" />
                 <Text style={styles.infoButtonText}>Chi tiết</Text>
-              </Pressable>
+              </PressableScale>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       ) : (
         <View style={[styles.heroContainer, styles.heroPlaceholder]}>
           <SkeletonItem height="100%" />
         </View>
       )}
 
-      {/* 2. MOVIE CAROUSELS */}
+      {/* MOVIE CAROUSELS */}
       <View style={styles.carouselsContainer}>
-        {/* Mới cập nhật */}
-        <MovieSlider
+        <CarouselOrSkeleton
           title="Mới Cập Nhật"
+          loading={newUpdatesQuery.isLoading}
           movies={newUpdatesQuery.data?.items || []}
           typeSlug="phim-moi-cap-nhat"
         />
-
-        {/* Phim Bộ */}
-        <MovieSlider
+        <CarouselOrSkeleton
           title="Phim Bộ Hot"
+          loading={seriesQuery.isLoading}
           movies={seriesQuery.data?.items || []}
           typeSlug="phim-bo"
         />
-
-        {/* Phim Lẻ */}
-        <MovieSlider
+        <CarouselOrSkeleton
           title="Phim Lẻ Hot"
+          loading={singleQuery.isLoading}
           movies={singleQuery.data?.items || []}
           typeSlug="phim-le"
         />
-
-        {/* Hoạt hình */}
-        <MovieSlider
+        <CarouselOrSkeleton
           title="Hoạt Hình / Anime"
+          loading={animeQuery.isLoading}
           movies={animeQuery.data?.items || []}
           typeSlug="hoat-hinh"
         />
-
-        {/* TV Shows */}
-        <MovieSlider
+        <CarouselOrSkeleton
           title="TV Shows Đặc Sắc"
+          loading={tvShowsQuery.isLoading}
           movies={tvShowsQuery.data?.items || []}
           typeSlug="tv-shows"
         />
@@ -265,23 +239,27 @@ export default function HomeScreen() {
   );
 }
 
+function CarouselOrSkeleton({
+  title,
+  loading,
+  movies,
+  typeSlug,
+}: {
+  title: string;
+  loading: boolean;
+  movies: any[];
+  typeSlug: string;
+}) {
+  if (loading && movies.length === 0) {
+    return <SkeletonSlider />;
+  }
+  return <MovieSlider title={title} movies={movies} typeSlug={typeSlug} />;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 2,
   },
   heroContainer: {
     height: SCREEN_HEIGHT * 0.65,
@@ -428,7 +406,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(113, 113, 122, 0.25)', // zinc-500 mờ
+    backgroundColor: 'rgba(113, 113, 122, 0.25)',
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 10,
@@ -442,6 +420,6 @@ const styles = StyleSheet.create({
   },
   carouselsContainer: {
     paddingBottom: 24,
-    marginTop: -8, // pull up slightly onto hero gradient
+    marginTop: -8,
   },
 });

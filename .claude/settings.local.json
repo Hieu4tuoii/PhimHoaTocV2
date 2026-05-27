@@ -6,7 +6,11 @@
       "Bash(npm run *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebSearch",
+      "Read(//c/Users/ADMIN/.claude/plans/**)",
+      "Read(//c/Users/ADMIN/.claude/**)"
     ]
   }
 }
