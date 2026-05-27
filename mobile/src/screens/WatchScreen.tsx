@@ -21,7 +21,9 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { StatusBar } from 'expo-status-bar';
 import {
   Play,
   Pause,
@@ -34,6 +36,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ZoomIn,
 } from 'lucide-react-native';
 
 import { COLORS } from '../theme/colors';
@@ -73,6 +76,25 @@ export default function WatchScreen() {
   // Scrubbing state - khi user kéo, không nhận update từ player
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubValue, setScrubValue] = useState(0);
+
+  const [zoomMode, setZoomMode] = useState<'contain' | 'cover' | 'fill'>('contain');
+  const [showZoomToast, setShowZoomToast] = useState(false);
+  const [zoomToastText, setZoomToastText] = useState('');
+  const zoomToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Advanced 2-finger zoom & pan states (matching web mobile zoom percentage and dynamic pan)
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const [zoomPercent, setZoomPercent] = useState(100);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapRef = useRef<number>(0);
 
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -283,6 +305,153 @@ export default function WatchScreen() {
     }
   }, [showControls, triggerShowControls]);
 
+  const updateZoomUI = useCallback((s: number) => {
+    const percent = Math.round(s * 100);
+    setZoomPercent(percent);
+    const zoomed = s > 1.01;
+    setIsZoomed(zoomed);
+    
+    setShowZoomIndicator(true);
+    if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+    zoomTimeoutRef.current = setTimeout(() => {
+      setShowZoomIndicator(false);
+    }, 1500);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    scale.value = withTiming(1, { duration: 250 });
+    translateX.value = withTiming(0, { duration: 250 });
+    translateY.value = withTiming(0, { duration: 250 });
+    savedScale.value = 1;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    
+    // Reset state
+    setZoomPercent(100);
+    setIsZoomed(false);
+    setShowZoomIndicator(true);
+    if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+    zoomTimeoutRef.current = setTimeout(() => {
+      setShowZoomIndicator(false);
+    }, 1500);
+
+    setZoomToastText('Tỉ lệ: Đặt lại (100%)');
+    setShowZoomToast(true);
+    if (zoomToastTimeoutRef.current) clearTimeout(zoomToastTimeoutRef.current);
+    zoomToastTimeoutRef.current = setTimeout(() => setShowZoomToast(false), 1500);
+  }, []);
+
+  // Pinch Gesture Handler
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      savedScale.value = scale.value;
+    })
+    .onUpdate((event) => {
+      const nextScale = Math.max(1, Math.min(3, savedScale.value * event.scale));
+      scale.value = nextScale;
+      runOnJS(updateZoomUI)(nextScale);
+    });
+
+  // Pan Gesture Handler - 2 fingers pan matching web mobile behavior
+  const panGesture = Gesture.Pan()
+    .minPointers(2)
+    .onStart(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    })
+    .onUpdate((event) => {
+      const s = scale.value;
+      if (s <= 1.01) return;
+      
+      const width = SCREEN_WIDTH;
+      const height = Dimensions.get('window').height;
+      const maxXVal = (width * (s - 1)) / 2;
+      const maxYVal = (height * (s - 1)) / 2;
+      
+      const nextX = savedTranslateX.value + event.translationX;
+      const nextY = savedTranslateY.value + event.translationY;
+      
+      translateX.value = Math.max(-maxXVal, Math.min(maxXVal, nextX));
+      translateY.value = Math.max(-maxYVal, Math.min(maxYVal, nextY));
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const combinedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const animatedVideoStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { scale: scale.value },
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+      ],
+    };
+  });
+
+  const toggleZoomMode = useCallback(() => {
+    triggerShowControls();
+    let nextMode: 'contain' | 'cover' | 'fill' = 'contain';
+    let label = 'Tỉ lệ: Gốc (Contain)';
+    
+    if (scale.value > 1.01) {
+      resetZoom();
+      return;
+    }
+
+    if (zoomMode === 'contain') {
+      nextMode = 'cover';
+      label = 'Tỉ lệ: Lấp đầy (Cover - Zoom)';
+      scale.value = withTiming(1.35, { duration: 250 });
+      runOnJS(updateZoomUI)(1.35);
+    } else if (zoomMode === 'cover') {
+      nextMode = 'fill';
+      label = 'Tỉ lệ: Kéo giãn (Fill - Stretch)';
+      scale.value = withTiming(1.0, { duration: 250 });
+      translateX.value = withTiming(0, { duration: 250 });
+      translateY.value = withTiming(0, { duration: 250 });
+      runOnJS(updateZoomUI)(1.0);
+    } else {
+      nextMode = 'contain';
+      label = 'Tỉ lệ: Gốc (Contain)';
+      scale.value = withTiming(1.0, { duration: 250 });
+      translateX.value = withTiming(0, { duration: 250 });
+      translateY.value = withTiming(0, { duration: 250 });
+      runOnJS(updateZoomUI)(1.0);
+    }
+    setZoomMode(nextMode);
+    setZoomToastText(label);
+    setShowZoomToast(true);
+    
+    if (zoomToastTimeoutRef.current) clearTimeout(zoomToastTimeoutRef.current);
+    zoomToastTimeoutRef.current = setTimeout(() => setShowZoomToast(false), 1500);
+  }, [zoomMode, triggerShowControls, resetZoom, updateZoomUI]);
+
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+    if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
+      triggerShowControls();
+      if (scale.value > 1.01) {
+        resetZoom();
+        setZoomMode('contain');
+      } else {
+        scale.value = withTiming(1.35, { duration: 250 });
+        setZoomMode('cover');
+        setZoomToastText('Tỉ lệ: Lấp đầy (Cover - Zoom)');
+        setShowZoomToast(true);
+        if (zoomToastTimeoutRef.current) clearTimeout(zoomToastTimeoutRef.current);
+        zoomToastTimeoutRef.current = setTimeout(() => setShowZoomToast(false), 1500);
+        runOnJS(updateZoomUI)(1.35);
+      }
+    } else {
+      togglePlayerTap();
+    }
+    lastTapRef.current = now;
+  }, [togglePlayerTap, resetZoom, updateZoomUI, triggerShowControls]);
+
   useEffect(() => {
     triggerShowControls();
     return () => {
@@ -352,6 +521,7 @@ export default function WatchScreen() {
   if (detailQuery.isLoading) {
     return (
       <View style={styles.loadingContainer}>
+        <StatusBar hidden={true} style="light" />
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>ĐANG LIÊN KẾT SERVER PHÁT PHIM...</Text>
       </View>
@@ -362,6 +532,7 @@ export default function WatchScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar hidden={true} style="light" />
       {isEmbedOnly && embedUrl ? (
         <View style={styles.webViewContainer}>
           <SafeAreaView style={styles.backHeaderWebView}>
@@ -369,7 +540,7 @@ export default function WatchScreen() {
               <ArrowLeft size={16} color="#FFFFFF" />
             </PressableScale>
             <Text style={styles.webViewEpText} numberOfLines={1}>
-              {movieName} - Tập {currentEpisodeName}
+              {movieName} - {currentEpisodeName}
             </Text>
             <PressableScale onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
               <ListVideo size={16} color="#FFFFFF" />
@@ -386,17 +557,33 @@ export default function WatchScreen() {
           />
         </View>
       ) : (
-        <View style={styles.playerContainer}>
-          <VideoView player={player} nativeControls={false} style={styles.videoView} />
+        <GestureDetector gesture={combinedGesture}>
+          <View style={styles.playerContainer}>
+            <Animated.View style={[{ width: '100%', height: '100%', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }, animatedVideoStyle]}>
+              <VideoView player={player} nativeControls={false} contentFit={zoomMode} style={styles.videoView} />
+            </Animated.View>
 
-          {/* Transparent tap layer — toggles controls; bị ẩn off khi controls đang show
-              để các button con (top/center/bottom) nhận touch trực tiếp */}
-          {!showControls && (
-            <Pressable
-              style={RNStyleSheet.absoluteFill}
-              onPress={togglePlayerTap}
-            />
-          )}
+            {/* Zoom Indicator % and Reset button matching web mobile */}
+            {isZoomed && (showZoomIndicator || showControls) && (
+              <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={styles.zoomIndicatorContainer}>
+                <ZoomIn size={12} color="#00E5FF" />
+                <Text style={styles.zoomIndicatorText}>{zoomPercent}%</Text>
+                {isZoomed && showControls && (
+                  <PressableScale onPress={resetZoom} style={styles.zoomResetBtn}>
+                    <Text style={styles.zoomResetText}>RESET</Text>
+                  </PressableScale>
+                )}
+              </Animated.View>
+            )}
+
+            {/* Transparent tap layer — toggles controls; bị ẩn off khi controls đang show
+                để các button con (top/center/bottom) nhận touch trực tiếp */}
+            {!showControls && (
+              <Pressable
+                style={RNStyleSheet.absoluteFill}
+                onPress={handleDoubleTap}
+              />
+            )}
 
           {/* Resume toast */}
           {showResumeIndicator && (
@@ -404,6 +591,13 @@ export default function WatchScreen() {
               <Text style={styles.resumeToastText}>
                 Đang phát tiếp từ {formatTime(getWatchProgress(slug, currentEpisodeSlug))}...
               </Text>
+            </Animated.View>
+          )}
+
+          {/* Zoom Toast */}
+          {showZoomToast && (
+            <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)} style={styles.zoomToast}>
+              <Text style={styles.zoomToastText}>{zoomToastText}</Text>
             </Animated.View>
           )}
 
@@ -419,7 +613,7 @@ export default function WatchScreen() {
               {/* Background tap layer - bao toàn bộ controlMask, tap vào không phải button → ẩn */}
               <Pressable
                 style={RNStyleSheet.absoluteFill}
-                onPress={togglePlayerTap}
+                onPress={handleDoubleTap}
               />
 
               <LinearGradient
@@ -444,22 +638,26 @@ export default function WatchScreen() {
                     {movieName}
                   </Text>
                   <Text style={styles.episodeTitle} numberOfLines={1}>
-                    Tập {currentEpisodeName}
+                    {currentEpisodeName}
                   </Text>
                 </View>
 
                 <View style={styles.topRightControls}>
-                  <PressableScale onPress={handleMuteToggle} style={styles.iconBtn}>
-                    {isMuted ? (
-                      <VolumeX size={18} color="#FFFFFF" />
-                    ) : (
-                      <Volume2 size={18} color="#FFFFFF" />
-                    )}
-                  </PressableScale>
+                   <PressableScale onPress={handleMuteToggle} style={styles.iconBtn}>
+                     {isMuted ? (
+                       <VolumeX size={18} color="#FFFFFF" />
+                     ) : (
+                       <Volume2 size={18} color="#FFFFFF" />
+                     )}
+                   </PressableScale>
 
-                  <PressableScale onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
-                    <ListVideo size={18} color="#FFFFFF" />
-                  </PressableScale>
+                   <PressableScale onPress={toggleZoomMode} style={styles.iconBtn}>
+                     <ZoomIn size={18} color={zoomMode !== 'contain' ? COLORS.primary : '#FFFFFF'} />
+                   </PressableScale>
+
+                   <PressableScale onPress={() => setShowEpisodesDrawer(true)} style={styles.iconBtn}>
+                     <ListVideo size={18} color="#FFFFFF" />
+                   </PressableScale>
                 </View>
               </View>
 
@@ -544,7 +742,8 @@ export default function WatchScreen() {
             </Animated.View>
           )}
         </View>
-      )}
+      </GestureDetector>
+    )}
 
       {/* EPISODES DRAWER */}
       <Modal
@@ -607,7 +806,7 @@ export default function WatchScreen() {
                         isActive && styles.drawerEpTextActive,
                       ]}
                     >
-                      Tập {ep.name}
+                      {ep.name}
                     </Text>
                   </PressableScale>
                 );
@@ -912,5 +1111,58 @@ const styles = StyleSheet.create({
   },
   drawerEpTextActive: {
     color: '#FFFFFF',
+  },
+  zoomToast: {
+    position: 'absolute',
+    top: 80,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(20, 20, 20, 0.92)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 99,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 99,
+  },
+  zoomToastText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  zoomIndicatorContainer: {
+    position: 'absolute',
+    top: 16,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+    zIndex: 99,
+  },
+  zoomIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  zoomResetBtn: {
+    marginLeft: 4,
+    paddingLeft: 6,
+    borderLeftWidth: 0.5,
+    borderLeftColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  zoomResetText: {
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '900',
   },
 });

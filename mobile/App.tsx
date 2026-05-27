@@ -175,6 +175,7 @@ export default function App() {
                 contentStyle: {
                   backgroundColor: COLORS.background,
                 },
+                gestureEnabled: true,
                 animation: 'slide_from_right',
                 animationDuration: 220,
               }}

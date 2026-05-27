@@ -65,7 +65,9 @@ export default function HistoryScreen() {
           }
           renderItem={({ item }) => {
             const progressPct = item.duration > 0 ? Math.min(Math.round((item.currentTime / item.duration) * 100), 100) : 0;
-            const posterUrl = getImageUrl(item.thumb_url);
+            const posterUrl = item.thumb_url && (item.thumb_url.startsWith('http://') || item.thumb_url.startsWith('https://'))
+              ? item.thumb_url
+              : getImageUrl(item.thumb_url);
 
             return (
               <View style={styles.historyCard}>
@@ -262,10 +264,9 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    height: '100%',
+    justifyContent: 'center',
     paddingVertical: 2,
-    gap: 14,
+    gap: 10,
   },
   playQuickBtn: {
     width: 28,

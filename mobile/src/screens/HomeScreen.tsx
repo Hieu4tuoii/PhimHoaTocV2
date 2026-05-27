@@ -24,7 +24,7 @@ import {
 } from '../services/api';
 import MovieSlider from '../components/MovieSlider';
 import MoviePoster from '../components/MoviePoster';
-import { SkeletonItem, SkeletonSlider } from '../components/SkeletonLoader';
+import { SkeletonItem, SkeletonSlider, SkeletonHero } from '../components/SkeletonLoader';
 import PressableScale from '../components/PressableScale';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -197,9 +197,7 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
       ) : (
-        <View style={[styles.heroContainer, styles.heroPlaceholder]}>
-          <SkeletonItem height="100%" />
-        </View>
+        <SkeletonHero />
       )}
 
       {/* MOVIE CAROUSELS */}

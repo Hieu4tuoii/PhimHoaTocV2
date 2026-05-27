@@ -30,7 +30,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const EPISODE_GAP = 10;
 const EPISODE_COLUMNS = 4;
 const EPISODE_PAD = 16 * 2 + 16 * 2; // card padding + horizontal screen padding
-const EPISODE_BTN_WIDTH = (SCREEN_WIDTH - EPISODE_PAD - EPISODE_GAP * (EPISODE_COLUMNS - 1)) / EPISODE_COLUMNS;
+// Trừ bớt 1.5px an toàn và làm tròn xuống để tránh rớt dòng cột thứ 4 do float pixels
+const EPISODE_BTN_WIDTH = Math.floor((SCREEN_WIDTH - EPISODE_PAD - EPISODE_GAP * (EPISODE_COLUMNS - 1)) / EPISODE_COLUMNS) - 1.5;
 const EPISODE_GRID_MAX_HEIGHT = 280;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'MovieDetail'>;
