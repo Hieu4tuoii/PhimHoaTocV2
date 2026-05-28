@@ -349,7 +349,20 @@ export default function WatchScreen() {
     .onUpdate((event) => {
       const nextScale = Math.max(1, Math.min(3, savedScale.value * event.scale));
       scale.value = nextScale;
-      runOnJS(updateZoomUI)(nextScale);
+    })
+    .onEnd(() => {
+      if (scale.value < 1.05) {
+        scale.value = withTiming(1, { duration: 200 });
+        translateX.value = withTiming(0, { duration: 200 });
+        translateY.value = withTiming(0, { duration: 200 });
+        savedScale.value = 1;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+        runOnJS(updateZoomUI)(1.0);
+      } else {
+        savedScale.value = scale.value;
+        runOnJS(updateZoomUI)(scale.value);
+      }
     });
 
   // Pan Gesture Handler - 2 fingers pan matching web mobile behavior
