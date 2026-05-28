@@ -11,6 +11,8 @@ import {
   SafeAreaView,
   StyleSheet as RNStyleSheet,
   BackHandler,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -24,6 +26,7 @@ import Slider from '@react-native-community/slider';
 import Animated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withTiming, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 import {
   Play,
   Pause,
@@ -99,6 +102,31 @@ export default function WatchScreen() {
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Enable Sticky Immersive mode: hide system bars but allow swipe-to-reveal
+  const enableImmersive = useCallback(async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await NavigationBar.setBehaviorAsync('overlay-swipe');
+        await NavigationBar.setVisibilityAsync('hidden');
+      }
+      RNStatusBar.setHidden(true, 'fade');
+    } catch (e) {
+      console.warn('Failed to enable immersive:', e);
+    }
+  }, []);
+
+  const disableImmersive = useCallback(async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await NavigationBar.setVisibilityAsync('visible');
+        await NavigationBar.setBehaviorAsync('inset-swipe');
+      }
+      RNStatusBar.setHidden(false, 'fade');
+    } catch (e) {
+      console.warn('Failed to disable immersive:', e);
+    }
+  }, []);
+
   // Lock landscape on mount, restore on unmount
   useEffect(() => {
     async function lockLandscape() {
@@ -126,22 +154,28 @@ export default function WatchScreen() {
     };
   }, []);
 
-  // Android hardware back: unlock orientation + goBack
+  // Enable immersive on focus, disable on blur
   useFocusEffect(
     useCallback(() => {
+      enableImmersive();
+
       const onBackPress = () => {
         (async () => {
           try {
             await ScreenOrientation.unlockAsync();
           } catch {}
+          await disableImmersive();
           flushWatchProgress();
           navigation.goBack();
         })();
         return true;
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => sub.remove();
-    }, [navigation])
+      return () => {
+        sub.remove();
+        disableImmersive();
+      };
+    }, [navigation, enableImmersive, disableImmersive])
   );
 
   const detailQuery = useQuery({
@@ -517,6 +551,7 @@ export default function WatchScreen() {
 
   const handleBack = async () => {
     try { await ScreenOrientation.unlockAsync(); } catch {}
+    await disableImmersive();
     flushWatchProgress();
     navigation.goBack();
   };
@@ -534,7 +569,7 @@ export default function WatchScreen() {
   if (detailQuery.isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar hidden={true} style="light" />
+        <StatusBar style="light" />
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>ĐANG LIÊN KẾT SERVER PHÁT PHIM...</Text>
       </View>
@@ -545,7 +580,7 @@ export default function WatchScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar hidden={true} style="light" />
+      <StatusBar style="light" />
       {isEmbedOnly && embedUrl ? (
         <View style={styles.webViewContainer}>
           <SafeAreaView style={styles.backHeaderWebView}>
