@@ -201,6 +201,7 @@ export default function App() {
                   headerShown: false,
                   orientation: 'all',
                   animation: 'fade',
+                  statusBarHidden: true,
                 }}
               />
             </RootStack.Navigator>

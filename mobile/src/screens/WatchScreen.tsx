@@ -569,7 +569,7 @@ export default function WatchScreen() {
   if (detailQuery.isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar style="light" />
+        <StatusBar hidden={true} style="light" />
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>ĐANG LIÊN KẾT SERVER PHÁT PHIM...</Text>
       </View>
@@ -580,7 +580,7 @@ export default function WatchScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar hidden={true} style="light" />
       {isEmbedOnly && embedUrl ? (
         <View style={styles.webViewContainer}>
           <SafeAreaView style={styles.backHeaderWebView}>
