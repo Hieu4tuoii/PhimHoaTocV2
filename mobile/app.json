@@ -20,7 +20,8 @@
       },
       "predictiveBackGestureEnabled": false,
       "userInterfaceStyle": "dark",
-      "package": "com.hieu4tuoi.phimhoatocmobile"
+      "package": "com.hieu4tuoi.phimhoatocmobile",
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -29,7 +30,8 @@
     },
     "plugins": [
       "expo-video",
-      "expo-image"
+      "expo-image",
+      "expo-navigation-bar"
     ],
     "extra": {
       "eas": {

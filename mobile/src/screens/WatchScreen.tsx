@@ -13,6 +13,7 @@ import {
   BackHandler,
   Platform,
   StatusBar as RNStatusBar,
+  AppState,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -106,9 +107,12 @@ export default function WatchScreen() {
   const enableImmersive = useCallback(async () => {
     try {
       if (Platform.OS === 'android') {
+        // Set behavior FIRST so when bars are hidden they use overlay-swipe
         await NavigationBar.setBehaviorAsync('overlay-swipe');
         await NavigationBar.setVisibilityAsync('hidden');
+        await NavigationBar.setBackgroundColorAsync('#00000001');
       }
+      // Hide status bar imperatively
       RNStatusBar.setHidden(true, 'fade');
     } catch (e) {
       console.warn('Failed to enable immersive:', e);
@@ -154,10 +158,17 @@ export default function WatchScreen() {
     };
   }, []);
 
-  // Enable immersive on focus, disable on blur
+  // Enable immersive on focus, disable on blur + re-apply on AppState change
   useFocusEffect(
     useCallback(() => {
       enableImmersive();
+
+      // Re-apply immersive when app returns from background
+      const appStateSub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') {
+          enableImmersive();
+        }
+      });
 
       const onBackPress = () => {
         (async () => {
@@ -173,6 +184,7 @@ export default function WatchScreen() {
       const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => {
         sub.remove();
+        appStateSub.remove();
         disableImmersive();
       };
     }, [navigation, enableImmersive, disableImmersive])
