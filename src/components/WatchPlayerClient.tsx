@@ -1447,10 +1447,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2.5 sm:gap-4">
-                      {/* Playback Speed Button */}
+                      {/* Playback Speed Button - Ẩn trên mobile dọc, chỉ hiện khi landscape fullscreen hoặc desktop */}
                       <div
                         ref={speedMenuRef}
-                        className="relative controls-prevent-click"
+                        className={`relative controls-prevent-click ${isLandscapeFullscreen ? "" : "hidden sm:block"}`}
                       >
                         <button
                           onClick={(e) => {
