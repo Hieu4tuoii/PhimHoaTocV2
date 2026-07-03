@@ -1,16 +1,53 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Play, Pause, Tv, ArrowLeft, ArrowRight, AlertTriangle, Monitor, RotateCcw, RotateCw, Volume2, VolumeX, Maximize, PlayCircle, Lock, Unlock, SkipForward, List, X, ZoomIn } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
-import { MovieDetail, MovieServer, EpisodeData } from '@/types';
-import Hls from 'hls.js';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Play,
+  Pause,
+  Tv,
+  ArrowLeft,
+  ArrowRight,
+  AlertTriangle,
+  Monitor,
+  RotateCcw,
+  RotateCw,
+  Volume2,
+  VolumeX,
+  Maximize,
+  PlayCircle,
+  Lock,
+  Unlock,
+  SkipForward,
+  List,
+  X,
+  ZoomIn,
+} from "lucide-react";
+import { useApp } from "@/context/AppContext";
+import { MovieDetail, MovieServer, EpisodeData } from "@/types";
+import Hls from "hls.js";
 
 // SVG Icon tùy chỉnh cho Picture-in-Picture
 const PipIcon: React.FC = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-5 h-5"
+  >
     <path d="M8 4.5v5H3v-5z" />
     <path d="M2 12v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-8" />
     <path d="M13 11v7h8v-7z" fill="currentColor" className="text-brand-rose" />
@@ -23,29 +60,47 @@ interface WatchPlayerClientProps {
   episodes: MovieServer[];
 }
 
-export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, currentEpisode, episodes }) => {
+export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
+  movie,
+  currentEpisode,
+  episodes,
+}) => {
   const router = useRouter();
-  const { isCinemaMode, toggleCinemaMode, setCinemaMode, saveWatchProgress, getWatchProgress } = useApp();
-  
+  const {
+    isCinemaMode,
+    toggleCinemaMode,
+    setCinemaMode,
+    saveWatchProgress,
+    getWatchProgress,
+  } = useApp();
+
   // Player Configuration States
   const [selectedServerIndex, setSelectedServerIndex] = useState(0); // Index of episodes server list
-  const [playMode, setPlayMode] = useState<'hls' | 'embed'>('hls'); // default HLS player if supported
-  
+  const [playMode, setPlayMode] = useState<"hls" | "embed">("hls"); // default HLS player if supported
+
   // Custom States cho các nút điều khiển mới
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
   const [isPipSupported, setIsPipSupported] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
 
+  // Playback speed states
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [customSpeedInput, setCustomSpeedInput] = useState("");
+  const speedMenuRef = useRef<HTMLDivElement>(null);
+
   // In-place episode switch: khi đang fullscreen, đổi tập mà không chuyển trang
-  const [overrideEpisode, setOverrideEpisode] = useState<EpisodeData | null>(null);
+  const [overrideEpisode, setOverrideEpisode] = useState<EpisodeData | null>(
+    null,
+  );
   const overrideEpisodeRef = useRef<EpisodeData | null>(null);
   overrideEpisodeRef.current = overrideEpisode;
   const prevVolumeRef = useRef(1);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  
+
   // Performance: Use refs for high-frequency values to avoid re-renders
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
@@ -54,9 +109,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   const durationDisplayRef = useRef<HTMLSpanElement>(null);
   // Performance: Cache giá trị đã ghi xuống DOM để skip redundant writes mỗi timeupdate
   const lastBgPctRef = useRef(-1);
-  const lastTimeTextRef = useRef('');
-  const lastDurationTextRef = useRef('');
-  
+  const lastTimeTextRef = useRef("");
+  const lastDurationTextRef = useRef("");
+
   // Custom Controls States (only for low-frequency UI updates)
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -108,14 +163,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (s > 1) {
       v.style.transform = `translate3d(${o.x}px, ${o.y}px, 0) scale(${s})`;
     } else {
-      v.style.transform = '';
+      v.style.transform = "";
     }
   }, []);
 
   const setVideoTransition = useCallback((enabled: boolean) => {
     const v = videoRef.current;
     if (!v) return;
-    v.style.transition = enabled ? 'transform 120ms ease-out' : 'none';
+    v.style.transition = enabled ? "transform 120ms ease-out" : "none";
   }, []);
 
   // Cập nhật phần trăm zoom xuống DOM; chỉ setState `isZoomed` khi VƯỢT ngưỡng (true/false), không phải mỗi event.
@@ -129,48 +184,57 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, []);
 
   // Find all episodes of selected server to facilitate navigation
-  const currentServerEpisodes = episodes[selectedServerIndex]?.server_data || [];
-  
+  const currentServerEpisodes =
+    episodes[selectedServerIndex]?.server_data || [];
+
   // Find the episode matching the slug of currentEpisode dynamically
   // Ưu tiên overrideEpisode nếu đang fullscreen in-place switch
-  const baseEpisode = currentServerEpisodes.find((ep) => ep.slug === currentEpisode.slug) || currentEpisode;
+  const baseEpisode =
+    currentServerEpisodes.find((ep) => ep.slug === currentEpisode.slug) ||
+    currentEpisode;
   const activeEpisode = overrideEpisode || baseEpisode;
-  
-  const currentEpIndex = currentServerEpisodes.findIndex((ep) => ep.slug === activeEpisode.slug);
-  
-  const prevEp = currentEpIndex > 0 ? currentServerEpisodes[currentEpIndex - 1] : null;
-  const nextEp = currentEpIndex < currentServerEpisodes.length - 1 ? currentServerEpisodes[currentEpIndex + 1] : null;
+
+  const currentEpIndex = currentServerEpisodes.findIndex(
+    (ep) => ep.slug === activeEpisode.slug,
+  );
+
+  const prevEp =
+    currentEpIndex > 0 ? currentServerEpisodes[currentEpIndex - 1] : null;
+  const nextEp =
+    currentEpIndex < currentServerEpisodes.length - 1
+      ? currentServerEpisodes[currentEpIndex + 1]
+      : null;
 
   // 1. Sync server list index on mount
   useEffect(() => {
     // If HLS link is empty, fall back to embed iframe immediately
     if (!activeEpisode.link_m3u8) {
-      setPlayMode('embed');
+      setPlayMode("embed");
     } else {
-      setPlayMode('hls');
+      setPlayMode("hls");
     }
   }, [activeEpisode]);
 
   // 2. Cinema backdrop side-effect
   useEffect(() => {
     // Inject or toggle class on body/html for cinema mode styling
-    const backdrop = document.querySelector('.cinema-backdrop-overlay');
+    const backdrop = document.querySelector(".cinema-backdrop-overlay");
     if (isCinemaMode) {
-      backdrop?.classList.add('active');
+      backdrop?.classList.add("active");
     } else {
-      backdrop?.classList.remove('active');
+      backdrop?.classList.remove("active");
     }
     return () => {
       // Always reset on page leave
       setCinemaMode(false);
-      backdrop?.classList.remove('active');
+      backdrop?.classList.remove("active");
     };
   }, [isCinemaMode]);
 
   // Fix #1: Toggle class 'is-watching' trên body để tắt backdrop-blur trên Header/BottomNav
   useEffect(() => {
-    document.body.classList.add('is-watching');
-    return () => document.body.classList.remove('is-watching');
+    document.body.classList.add("is-watching");
+    return () => document.body.classList.remove("is-watching");
   }, []);
 
   // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset & PiP check
@@ -186,7 +250,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (document.fullscreenElement) {
         // Vào fullscreen (bất kể nguồn: nút custom hay iframe native) → xoay ngang
         try {
-          (screen.orientation as any).lock('landscape');
+          (screen.orientation as any).lock("landscape");
         } catch {
           // Orientation lock không được hỗ trợ — bỏ qua
         }
@@ -208,7 +272,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         // Sync URL nếu đã đổi tập in-place khi fullscreen
         setOverrideEpisode((prev) => {
           if (prev && prev.slug !== currentEpisode.slug) {
-            router.replace(`/xem-phim/${movie.slug}/${prev.slug}`, { scroll: false });
+            router.replace(`/xem-phim/${movie.slug}/${prev.slug}`, {
+              scroll: false,
+            });
           }
           return null;
         });
@@ -221,19 +287,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       }
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    window.addEventListener('resize', handleResize, { passive: true });
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    window.addEventListener("resize", handleResize, { passive: true });
 
     // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không
     setIsPipSupported(
-      typeof document !== 'undefined' && 
-      document.pictureInPictureEnabled && 
-      !!videoRef.current
+      typeof document !== "undefined" &&
+        document.pictureInPictureEnabled &&
+        !!videoRef.current,
     );
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      window.removeEventListener('resize', handleResize);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      window.removeEventListener("resize", handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
@@ -252,16 +318,23 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, [isPlaying]);
 
+  // 2.3. Sync playbackRate lên video khi state thay đổi hoặc khi đổi tập (video mới load)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = playbackRate;
+  }, [playbackRate, activeEpisode.slug]);
+
   // Performance: formatTime as a stable helper (no dependency on state)
   const formatTime = useCallback((timeInSeconds: number) => {
     const hrs = Math.floor(timeInSeconds / 3600);
     const mins = Math.floor((timeInSeconds % 3600) / 60);
     const secs = Math.floor(timeInSeconds % 60);
 
-    let result = '';
+    let result = "";
     if (hrs > 0) result += `${hrs}:`;
-    result += `${mins < 10 ? '0' : ''}${mins}:`;
-    result += `${secs < 10 ? '0' : ''}${secs}`;
+    result += `${mins < 10 ? "0" : ""}${mins}:`;
+    result += `${secs < 10 ? "0" : ""}${secs}`;
     return result;
   }, []);
 
@@ -312,7 +385,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // 3. Initialize HLS Player on m3u8 link change
   useEffect(() => {
-    if (playMode !== 'hls' || !videoRef.current || !activeEpisode.link_m3u8) return;
+    if (playMode !== "hls" || !videoRef.current || !activeEpisode.link_m3u8)
+      return;
 
     const video = videoRef.current;
     const hlsUrl = activeEpisode.link_m3u8;
@@ -324,17 +398,18 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
 
     if (Hls.isSupported()) {
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-        || (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+      const isMobile =
+        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+        (navigator.userAgent.includes("Mac") && "ontouchend" in document);
       const hls = new Hls({
         // Performance: Optimized HLS config for smoother streaming
         maxMaxBufferLength: isMobile ? 30 : 60,
         maxBufferSize: isMobile ? 30_000_000 : 60_000_000,
-        maxBufferHole: 0.5,               // Allow small buffer holes
+        maxBufferHole: 0.5, // Allow small buffer holes
         backBufferLength: isMobile ? 30 : 90,
         enableWorker: true,
-        startLevel: -1,                   // Auto-detect best quality level
-        capLevelToPlayerSize: true,       // Don't load resolution > player size
+        startLevel: -1, // Auto-detect best quality level
+        capLevelToPlayerSize: true, // Don't load resolution > player size
       });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
@@ -353,29 +428,38 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error('HLS fatal network error, trying to recover...', data);
+              console.error(
+                "HLS fatal network error, trying to recover...",
+                data,
+              );
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error('HLS fatal media error, trying to recover...', data);
+              console.error(
+                "HLS fatal media error, trying to recover...",
+                data,
+              );
               hls.recoverMediaError();
               break;
             default:
-              console.error('HLS unrecoverable error, switching to Embed Player...', data);
-              setPlayMode('embed');
+              console.error(
+                "HLS unrecoverable error, switching to Embed Player...",
+                data,
+              );
+              setPlayMode("embed");
               break;
           }
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       // Native HLS (mainly Safari iOS)
       video.src = hlsUrl;
-      video.addEventListener('loadedmetadata', () => {
+      video.addEventListener("loadedmetadata", () => {
         checkAndShowResume();
       });
     } else {
       // browser does not support HLS at all, fallback to Embed
-      setPlayMode('embed');
+      setPlayMode("embed");
     }
 
     return () => {
@@ -389,12 +473,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Check watch progress of this episode to offer resume
   const checkAndShowResume = useCallback(() => {
     const progress = getWatchProgress(movie.slug, activeEpisode.slug);
-    if (progress > 10) { // Only resume if watched more than 10 seconds
+    if (progress > 10) {
+      // Only resume if watched more than 10 seconds
       setSavedTime(progress);
       setShowResumeToast(true);
       // Auto-hide toast after 10 seconds
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
-      resumeTimeoutRef.current = setTimeout(() => setShowResumeToast(false), 10000);
+      resumeTimeoutRef.current = setTimeout(
+        () => setShowResumeToast(false),
+        10000,
+      );
     }
   }, [getWatchProgress, movie.slug, activeEpisode.slug]);
 
@@ -410,13 +498,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // 4. Progress Auto-Save Timer & Video events hook
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || playMode !== 'hls') return;
+    if (!video || playMode !== "hls") return;
 
     let saveInterval: NodeJS.Timeout;
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-    
+
     // Performance: Update ref + DOM directly instead of setState. Skip DOM write khi controls ẩn (slider đang opacity-0)
     const handleTimeUpdate = () => {
       currentTimeRef.current = video.currentTime;
@@ -442,17 +530,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             activeEpisode.slug,
             activeEpisode.name,
             video.currentTime,
-            video.duration
+            video.duration,
           );
         }
       }, 15000);
     };
 
-    video.addEventListener('play', handlePlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('durationchange', handleDurationChange);
-    
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("durationchange", handleDurationChange);
+
     let nextEpisodeTimeout: NodeJS.Timeout;
 
     // Auto-next when movie ends
@@ -465,39 +553,56 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         }, 3000);
       }
     };
-    video.addEventListener('ended', handleEnded);
+    video.addEventListener("ended", handleEnded);
 
     startProgressSaving();
 
     return () => {
-      video.removeEventListener('play', handlePlay);
-      video.removeEventListener('pause', handlePause);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('durationchange', handleDurationChange);
-      video.removeEventListener('ended', handleEnded);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("durationchange", handleDurationChange);
+      video.removeEventListener("ended", handleEnded);
       clearInterval(saveInterval);
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
     };
-  }, [activeEpisode, playMode, nextEp, movie.slug, movie.name, movie.thumb_url, movie.poster_url, activeEpisode.slug, activeEpisode.name, saveWatchProgress, updateProgressTime, updateProgressDuration, router]);
+  }, [
+    activeEpisode,
+    playMode,
+    nextEp,
+    movie.slug,
+    movie.name,
+    movie.thumb_url,
+    movie.poster_url,
+    activeEpisode.slug,
+    activeEpisode.name,
+    saveWatchProgress,
+    updateProgressTime,
+    updateProgressDuration,
+    router,
+  ]);
 
   // Custom Player Actions
-  const handleSkip = useCallback((seconds: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    let newTime = video.currentTime + seconds;
-    if (newTime < 0) newTime = 0;
-    if (newTime > durationRef.current) newTime = durationRef.current;
-    video.currentTime = newTime;
-    currentTimeRef.current = newTime;
-    updateProgressTime();
-  }, [updateProgressTime]);
+  const handleSkip = useCallback(
+    (seconds: number) => {
+      const video = videoRef.current;
+      if (!video) return;
+      let newTime = video.currentTime + seconds;
+      if (newTime < 0) newTime = 0;
+      if (newTime > durationRef.current) newTime = durationRef.current;
+      video.currentTime = newTime;
+      currentTimeRef.current = newTime;
+      updateProgressTime();
+    },
+    [updateProgressTime],
+  );
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (video.paused) {
-      video.play().catch(err => console.error("Error playing video:", err));
+      video.play().catch((err) => console.error("Error playing video:", err));
     } else {
       video.pause();
     }
@@ -505,45 +610,48 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // Keyboard navigation shortcuts for PC (ArrowLeft/ArrowRight to seek, Space to play/pause)
   useEffect(() => {
-    if (playMode !== 'hls' || isLocked) return;
+    if (playMode !== "hls" || isLocked) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Avoid triggering shortcuts if the user is typing in form inputs
       const activeEl = document.activeElement;
       if (
         activeEl &&
-        (activeEl.tagName === 'INPUT' ||
-         activeEl.tagName === 'TEXTAREA' ||
-         (activeEl instanceof HTMLElement && activeEl.isContentEditable))
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          (activeEl instanceof HTMLElement && activeEl.isContentEditable))
       ) {
         return;
       }
 
-      if (e.key === 'ArrowLeft') {
+      if (e.key === "ArrowLeft") {
         e.preventDefault();
         handleSkip(-10);
         setShowControls(true);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (controlsTimeoutRef.current)
+          clearTimeout(controlsTimeoutRef.current);
         if (isPlaying) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
         }
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === "ArrowRight") {
         e.preventDefault();
         handleSkip(10);
         setShowControls(true);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (controlsTimeoutRef.current)
+          clearTimeout(controlsTimeoutRef.current);
         if (isPlaying) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
         }
-      } else if (e.key === ' ') {
+      } else if (e.key === " ") {
         e.preventDefault();
         togglePlay();
         setShowControls(true);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (controlsTimeoutRef.current)
+          clearTimeout(controlsTimeoutRef.current);
         if (isPlaying) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
@@ -552,9 +660,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [playMode, isLocked, isPlaying, handleSkip, togglePlay]);
 
@@ -562,22 +670,29 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   // Hiện chỉ báo mức zoom trong ~1.5s mỗi khi thay đổi, sau đó tự ẩn
   const flashZoomIndicator = useCallback(() => {
     setShowZoomIndicator(true);
-    if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
-    zoomIndicatorTimeoutRef.current = setTimeout(() => setShowZoomIndicator(false), 1500);
+    if (zoomIndicatorTimeoutRef.current)
+      clearTimeout(zoomIndicatorTimeoutRef.current);
+    zoomIndicatorTimeoutRef.current = setTimeout(
+      () => setShowZoomIndicator(false),
+      1500,
+    );
   }, []);
 
   // Giới hạn pan để mép video không bị kéo ra ngoài khung hiển thị
-  const clampOffset = useCallback((x: number, y: number, scale: number): { x: number; y: number } => {
-    const container = playerContainerRef.current;
-    if (!container || scale <= 1) return { x: 0, y: 0 };
-    const rect = container.getBoundingClientRect();
-    const maxX = (rect.width * (scale - 1)) / 2;
-    const maxY = (rect.height * (scale - 1)) / 2;
-    return {
-      x: Math.max(-maxX, Math.min(maxX, x)),
-      y: Math.max(-maxY, Math.min(maxY, y)),
-    };
-  }, []);
+  const clampOffset = useCallback(
+    (x: number, y: number, scale: number): { x: number; y: number } => {
+      const container = playerContainerRef.current;
+      if (!container || scale <= 1) return { x: 0, y: 0 };
+      const rect = container.getBoundingClientRect();
+      const maxX = (rect.width * (scale - 1)) / 2;
+      const maxY = (rect.height * (scale - 1)) / 2;
+      return {
+        x: Math.max(-maxX, Math.min(maxX, x)),
+        y: Math.max(-maxY, Math.min(maxY, y)),
+      };
+    },
+    [],
+  );
 
   const resetZoom = useCallback(() => {
     videoScaleRef.current = 1;
@@ -586,7 +701,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     applyVideoTransform();
     updateZoomDisplay();
     flashZoomIndicator();
-  }, [applyVideoTransform, setVideoTransition, updateZoomDisplay, flashZoomIndicator]);
+  }, [
+    applyVideoTransform,
+    setVideoTransition,
+    updateZoomDisplay,
+    flashZoomIndicator,
+  ]);
 
   // Attach gesture listeners (wheel + multi-touch) với passive:false để có thể preventDefault
   useEffect(() => {
@@ -600,7 +720,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       const currentScale = videoScaleRef.current;
       // Bước zoom tỉ lệ thuận với scale hiện tại → cảm giác mượt ở mọi mức
       const delta = -e.deltaY * 0.0015;
-      const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, currentScale * (1 + delta)));
+      const nextScale = Math.max(
+        MIN_SCALE,
+        Math.min(MAX_SCALE, currentScale * (1 + delta)),
+      );
       if (Math.abs(nextScale - currentScale) < 0.001) return;
       videoScaleRef.current = nextScale;
       if (nextScale <= MIN_SCALE + 0.001) {
@@ -620,7 +743,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (e.touches.length === 2) {
         const t1 = e.touches[0];
         const t2 = e.touches[1];
-        const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const distance = Math.hypot(
+          t2.clientX - t1.clientX,
+          t2.clientY - t1.clientY,
+        );
         pinchStateRef.current = {
           initialDistance: distance,
           initialScale: videoScaleRef.current,
@@ -640,9 +766,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         e.preventDefault();
         const t1 = e.touches[0];
         const t2 = e.touches[1];
-        const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+        const distance = Math.hypot(
+          t2.clientX - t1.clientX,
+          t2.clientY - t1.clientY,
+        );
         const ratio = distance / pinchStateRef.current.initialDistance;
-        const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStateRef.current.initialScale * ratio));
+        const nextScale = Math.max(
+          MIN_SCALE,
+          Math.min(MAX_SCALE, pinchStateRef.current.initialScale * ratio),
+        );
         videoScaleRef.current = nextScale;
         if (nextScale <= MIN_SCALE + 0.001) {
           videoOffsetRef.current = { x: 0, y: 0 };
@@ -652,7 +784,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
           const midY = (t1.clientY + t2.clientY) / 2;
           const dx = midX - pinchStateRef.current.initialMidX;
           const dy = midY - pinchStateRef.current.initialMidY;
-          if (Math.abs(dx) > 5 || Math.abs(dy) > 5 || Math.abs(ratio - 1) > 0.02) {
+          if (
+            Math.abs(dx) > 5 ||
+            Math.abs(dy) > 5 ||
+            Math.abs(ratio - 1) > 0.02
+          ) {
             pinchStateRef.current.moved = true;
           }
           const o = pinchStateRef.current.initialOffset;
@@ -668,32 +804,42 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       if (pinchStateRef.current) {
         // Vừa pinch xong (nâng ít nhất 1 ngón) → chặn tap kế tiếp để không toggle controls
         suppressTapRef.current = true;
-        setTimeout(() => { suppressTapRef.current = false; }, 400);
+        setTimeout(() => {
+          suppressTapRef.current = false;
+        }, 400);
         pinchStateRef.current = null;
         // Bật lại transition cho thao tác tiếp theo
         setVideoTransition(true);
       }
     };
 
-    container.addEventListener('wheel', onWheel, { passive: false });
+    container.addEventListener("wheel", onWheel, { passive: false });
     if (isLandscapeFullscreen) {
-      container.addEventListener('touchstart', onTouchStart, { passive: true });
-      container.addEventListener('touchmove', onTouchMove, { passive: false });
-      container.addEventListener('touchend', onTouchEnd, { passive: true });
-      container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+      container.addEventListener("touchstart", onTouchStart, { passive: true });
+      container.addEventListener("touchmove", onTouchMove, { passive: false });
+      container.addEventListener("touchend", onTouchEnd, { passive: true });
+      container.addEventListener("touchcancel", onTouchEnd, { passive: true });
     }
 
     return () => {
-      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener("wheel", onWheel);
       if (isLandscapeFullscreen) {
-        container.removeEventListener('touchstart', onTouchStart);
-        container.removeEventListener('touchmove', onTouchMove);
-        container.removeEventListener('touchend', onTouchEnd);
-        container.removeEventListener('touchcancel', onTouchEnd);
+        container.removeEventListener("touchstart", onTouchStart);
+        container.removeEventListener("touchmove", onTouchMove);
+        container.removeEventListener("touchend", onTouchEnd);
+        container.removeEventListener("touchcancel", onTouchEnd);
       }
-      if (zoomIndicatorTimeoutRef.current) clearTimeout(zoomIndicatorTimeoutRef.current);
+      if (zoomIndicatorTimeoutRef.current)
+        clearTimeout(zoomIndicatorTimeoutRef.current);
     };
-  }, [isLandscapeFullscreen, clampOffset, flashZoomIndicator, applyVideoTransform, setVideoTransition, updateZoomDisplay]);
+  }, [
+    isLandscapeFullscreen,
+    clampOffset,
+    flashZoomIndicator,
+    applyVideoTransform,
+    setVideoTransition,
+    updateZoomDisplay,
+  ]);
 
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
   const handlePlayerTap = useCallback(() => {
@@ -702,7 +848,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     if (isPlaying) {
       setShowControls((prev) => {
         const nextState = !prev;
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (controlsTimeoutRef.current)
+          clearTimeout(controlsTimeoutRef.current);
         if (nextState) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
@@ -717,63 +864,76 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
   // Kiểm tra xem event target có phải interactive element không
   const isInteractiveTarget = useCallback((target: HTMLElement): boolean => {
-    const interactiveTags = ['BUTTON', 'INPUT', 'A', 'SELECT', 'TEXTAREA'];
+    const interactiveTags = ["BUTTON", "INPUT", "A", "SELECT", "TEXTAREA"];
     // Kiểm tra chính element hoặc parent gần nhất
     if (interactiveTags.includes(target.tagName)) return true;
-    if (target.closest('button, input, a, .controls-prevent-click')) return true;
+    if (target.closest("button, input, a, .controls-prevent-click"))
+      return true;
     // SVG icon bên trong button
-    if (target.closest('svg')?.closest('button')) return true;
+    if (target.closest("svg")?.closest("button")) return true;
     return false;
   }, []);
 
-  const handlePlayerClick = useCallback((e: React.MouseEvent) => {
-    // Nếu touch đã xử lý rồi, bỏ qua click (tránh double-fire trên mobile)
-    if (touchHandledRef.current) {
-      touchHandledRef.current = false;
-      return;
-    }
-    // Vừa kết thúc pinch/pan → bỏ qua tap để không vô tình toggle controls
-    if (suppressTapRef.current) return;
+  const handlePlayerClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Nếu touch đã xử lý rồi, bỏ qua click (tránh double-fire trên mobile)
+      if (touchHandledRef.current) {
+        touchHandledRef.current = false;
+        return;
+      }
+      // Vừa kết thúc pinch/pan → bỏ qua tap để không vô tình toggle controls
+      if (suppressTapRef.current) return;
 
-    const target = e.target as HTMLElement;
-    if (isInteractiveTarget(target)) return;
+      const target = e.target as HTMLElement;
+      if (isInteractiveTarget(target)) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-    handlePlayerTap();
-  }, [handlePlayerTap, isInteractiveTarget]);
+      e.preventDefault();
+      e.stopPropagation();
+      handlePlayerTap();
+    },
+    [handlePlayerTap, isInteractiveTarget],
+  );
 
   // Touch handler riêng cho mobile — phản hồi ngay tại touchend, không chờ 300ms click delay
-  const handlePlayerTouchEnd = useCallback((e: React.TouchEvent) => {
-    isTouchDeviceRef.current = true;
-    // Vừa kết thúc pinch/pan → bỏ qua tap (tránh toggle controls ngoài ý muốn)
-    if (suppressTapRef.current) return;
-    // Đang còn ngón khác đang chạm (đang trong gesture đa chạm) → không phải tap
-    if (e.touches.length > 0) return;
-    const target = e.target as HTMLElement;
-    if (isInteractiveTarget(target)) return;
+  const handlePlayerTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      isTouchDeviceRef.current = true;
+      // Vừa kết thúc pinch/pan → bỏ qua tap (tránh toggle controls ngoài ý muốn)
+      if (suppressTapRef.current) return;
+      // Đang còn ngón khác đang chạm (đang trong gesture đa chạm) → không phải tap
+      if (e.touches.length > 0) return;
+      const target = e.target as HTMLElement;
+      if (isInteractiveTarget(target)) return;
 
-    e.preventDefault();
-    touchHandledRef.current = true;
-    handlePlayerTap();
-  }, [handlePlayerTap, isInteractiveTarget]);
+      e.preventDefault();
+      touchHandledRef.current = true;
+      handlePlayerTap();
+    },
+    [handlePlayerTap, isInteractiveTarget],
+  );
 
-  const handleSeekChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const video = videoRef.current;
-    if (!video) return;
-    const seekTime = parseFloat(e.target.value);
-    video.currentTime = seekTime;
-    currentTimeRef.current = seekTime;
-    updateProgressTime();
-  }, [updateProgressTime]);
+  const handleSeekChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const seekTime = parseFloat(e.target.value);
+      video.currentTime = seekTime;
+      currentTimeRef.current = seekTime;
+      updateProgressTime();
+    },
+    [updateProgressTime],
+  );
 
-  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const video = videoRef.current;
-    if (!video) return;
-    const val = parseFloat(e.target.value);
-    video.volume = val;
-    setVolume(val);
-  }, []);
+  const handleVolumeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const video = videoRef.current;
+      if (!video) return;
+      const val = parseFloat(e.target.value);
+      video.volume = val;
+      setVolume(val);
+    },
+    [],
+  );
 
   const toggleFullscreen = useCallback(async () => {
     const playerContainer = playerContainerRef.current;
@@ -784,12 +944,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         await playerContainer.requestFullscreen();
         // Thử xoay ngang khi vào fullscreen (mobile/tablet)
         try {
-          await (screen.orientation as any).lock('landscape');
+          await (screen.orientation as any).lock("landscape");
         } catch {
           // Orientation lock không được hỗ trợ hoặc bị từ chối — bỏ qua
         }
       } catch (err) {
-        console.error('Fullscreen error:', err);
+        console.error("Fullscreen error:", err);
       }
     } else {
       try {
@@ -812,7 +972,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         await video.requestPictureInPicture();
       }
     } catch (err) {
-      console.error('Picture-in-Picture error:', err);
+      console.error("Picture-in-Picture error:", err);
     }
   }, []);
 
@@ -831,6 +991,39 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
     }
   }, []);
 
+  // Thay đổi tốc độ phát video
+  const changePlaybackRate = useCallback((rate: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = rate;
+    setPlaybackRate(rate);
+    setShowSpeedMenu(false);
+  }, []);
+
+  // Áp dụng tốc độ custom từ input
+  const applyCustomSpeed = useCallback(() => {
+    const val = parseFloat(customSpeedInput);
+    if (!isNaN(val) && val >= 0.25 && val <= 16) {
+      changePlaybackRate(val);
+      setCustomSpeedInput("");
+    }
+  }, [customSpeedInput, changePlaybackRate]);
+
+  // Đóng speed menu khi click bên ngoài
+  useEffect(() => {
+    if (!showSpeedMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        speedMenuRef.current &&
+        !speedMenuRef.current.contains(e.target as Node)
+      ) {
+        setShowSpeedMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSpeedMenu]);
+
   // Performance: Throttled mouse move handler (max 1 call per 300ms)
   const handleMouseMove = useCallback(() => {
     // Bỏ qua trên touch device — đã có touch handler riêng
@@ -847,7 +1040,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       return true;
     });
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    
+
     if (isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
@@ -860,82 +1053,87 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
   }, [isPlaying]);
 
   // Performance: Memoize danh sách tập trong drawer fullscreen — tránh reconcile 100+ nút mỗi khi controls toggle hoặc state khác đổi.
-  const drawerEpisodeButtons = useMemo(() => (
-    currentServerEpisodes.map((ep) => {
-      const isCurrent = ep.slug === activeEpisode.slug;
-      return (
-        <button
-          key={ep.slug}
-          onClick={() => {
-            setShowEpisodesDrawer(false);
-            // In-place switch: đổi tập ngay mà không thoát fullscreen
-            setOverrideEpisode(ep);
-          }}
-          className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-colors duration-300 cursor-pointer flex items-center justify-between ${
-            isCurrent
-              ? 'bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25'
-              : 'bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200'
-          }`}
-        >
-          <span className="truncate pr-2">{ep.name}</span>
-          {isCurrent && (
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan"></span>
-            </span>
-          )}
-        </button>
-      );
-    })
-  ), [currentServerEpisodes, activeEpisode.slug]);
+  const drawerEpisodeButtons = useMemo(
+    () =>
+      currentServerEpisodes.map((ep) => {
+        const isCurrent = ep.slug === activeEpisode.slug;
+        return (
+          <button
+            key={ep.slug}
+            onClick={() => {
+              setShowEpisodesDrawer(false);
+              // In-place switch: đổi tập ngay mà không thoát fullscreen
+              setOverrideEpisode(ep);
+            }}
+            className={`w-full text-left py-3 px-4 text-xs font-bold rounded-xl border transition-colors duration-300 cursor-pointer flex items-center justify-between ${
+              isCurrent
+                ? "bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/25"
+                : "bg-white/5 border-white/5 hover:border-brand-rose/50 hover:bg-white/8 text-slate-200"
+            }`}
+          >
+            <span className="truncate pr-2">{ep.name}</span>
+            {isCurrent && (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan"></span>
+              </span>
+            )}
+          </button>
+        );
+      }),
+    [currentServerEpisodes, activeEpisode.slug],
+  );
 
   // Performance: Memoize grid tập phim dưới player — tương tự drawer, đối với phim có nhiều tập (anime).
-  const bottomEpisodeLinks = useMemo(() => (
-    currentServerEpisodes.map((ep) => {
-      const isCurrent = ep.slug === activeEpisode.slug;
-      return (
-        <Link
-          key={ep.slug}
-          href={`/xem-phim/${movie.slug}/${ep.slug}`}
-          prefetch={false}
-          className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-[transform,border-color,background-color,color] duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
-            isCurrent
-              ? 'bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15'
-              : 'bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200'
-          }`}
-          title={ep.filename}
-        >
-          {ep.name}
-        </Link>
-      );
-    })
-  ), [currentServerEpisodes, activeEpisode.slug, movie.slug]);
+  const bottomEpisodeLinks = useMemo(
+    () =>
+      currentServerEpisodes.map((ep) => {
+        const isCurrent = ep.slug === activeEpisode.slug;
+        return (
+          <Link
+            key={ep.slug}
+            href={`/xem-phim/${movie.slug}/${ep.slug}`}
+            prefetch={false}
+            className={`py-3 px-3 text-center text-xs font-extrabold rounded-xl border transition-[transform,border-color,background-color,color] duration-300 cursor-pointer transform hover:-translate-y-0.5 active:scale-95 active:translate-y-0 active:duration-75 ${
+              isCurrent
+                ? "bg-white/10 border-brand-violet/60 text-brand-cyan hover:border-brand-violet hover:bg-white/15"
+                : "bg-white/5 border-white/5 hover:border-brand-rose hover:bg-gradient-to-r hover:from-brand-violet hover:to-brand-rose text-slate-200"
+            }`}
+            title={ep.filename}
+          >
+            {ep.name}
+          </Link>
+        );
+      }),
+    [currentServerEpisodes, activeEpisode.slug, movie.slug],
+  );
 
   return (
     <div className="w-full space-y-8 animate-slide-up">
-      
       {/* 1. CINEMA BACKDROP OVERLAY OVER WHOLE PAGE — chỉ render khi bật cinema mode */}
       {isCinemaMode && (
-        <div 
-          className="cinema-backdrop cinema-backdrop-overlay active" 
+        <div
+          className="cinema-backdrop cinema-backdrop-overlay active"
           onClick={() => toggleCinemaMode()}
         />
       )}
 
       {/* 2. CINEMA PLAYER CONTAINER */}
-      <div 
+      <div
         ref={playerContainerRef}
         className={`custom-player-container relative aspect-video w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full bg-black rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-800/80 shadow-2xl z-40 transition-[box-shadow,transform] duration-500 ${
-          isCinemaMode 
-            ? 'ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102' 
-            : 'shadow-black/60'
+          isCinemaMode
+            ? "ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102"
+            : "shadow-black/60"
         }`}
         onMouseMove={handleMouseMove}
       >
-        
         {/* Play HLS m3u8 Mode */}
-        {playMode === 'hls' && activeEpisode.link_m3u8 && (
-          <div className="relative w-full h-full group/player cursor-none" style={{ cursor: showControls ? 'default' : 'none' }}>
+        {playMode === "hls" && activeEpisode.link_m3u8 && (
+          <div
+            className="relative w-full h-full group/player cursor-none"
+            style={{ cursor: showControls ? "default" : "none" }}
+          >
             <video
               ref={videoRef}
               className="w-full h-full object-contain"
@@ -943,9 +1141,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               onTouchEnd={handlePlayerTouchEnd}
               playsInline
               style={{
-                transformOrigin: 'center center',
-                willChange: isLandscapeFullscreen ? 'transform' : undefined,
-                touchAction: isLandscapeFullscreen ? 'none' : undefined,
+                transformOrigin: "center center",
+                willChange: isLandscapeFullscreen ? "transform" : undefined,
+                touchAction: isLandscapeFullscreen ? "none" : undefined,
               }}
             />
 
@@ -957,12 +1155,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               <div
                 className={`absolute top-4 left-1/2 -translate-x-1/2 z-[55] flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 shadow-lg transition-opacity duration-300 ${
                   showZoomIndicator || (showControls && isZoomed)
-                    ? 'opacity-100'
-                    : 'opacity-0 pointer-events-none'
+                    ? "opacity-100"
+                    : "opacity-0 pointer-events-none"
                 }`}
               >
                 <ZoomIn className="w-3.5 h-3.5 text-brand-cyan" />
-                <span ref={zoomIndicatorTextRef} className="text-xs font-bold text-white tabular-nums">
+                <span
+                  ref={zoomIndicatorTextRef}
+                  className="text-xs font-bold text-white tabular-nums"
+                >
                   100%
                 </span>
                 {isZoomed && showControls && (
@@ -987,15 +1188,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
             {/* Khóa màn hình Overlay — tap để toggle hiển thị nút unlock giống controls */}
             {isLocked && isLandscapeFullscreen && (
-              <div 
+              <div
                 className="absolute inset-0 z-50 flex items-center justify-start p-6"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowControls(prev => {
+                  setShowControls((prev) => {
                     const next = !prev;
-                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                    if (controlsTimeoutRef.current)
+                      clearTimeout(controlsTimeoutRef.current);
                     if (next && isPlaying) {
-                      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+                      controlsTimeoutRef.current = setTimeout(
+                        () => setShowControls(false),
+                        3000,
+                      );
                     }
                     return next;
                   });
@@ -1003,11 +1208,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                 onTouchEnd={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  setShowControls(prev => {
+                  setShowControls((prev) => {
                     const next = !prev;
-                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                    if (controlsTimeoutRef.current)
+                      clearTimeout(controlsTimeoutRef.current);
                     if (next && isPlaying) {
-                      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+                      controlsTimeoutRef.current = setTimeout(
+                        () => setShowControls(false),
+                        3000,
+                      );
                     }
                     return next;
                   });
@@ -1026,7 +1235,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                     setShowControls(true);
                   }}
                   className={`w-12 h-12 rounded-full bg-brand-rose/85 hover:bg-brand-rose border border-white/20 flex items-center justify-center text-white cursor-pointer shadow-lg transition-[opacity,transform,background-color] duration-300 ${
-                    showControls ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
+                    showControls
+                      ? "opacity-100 scale-100"
+                      : "opacity-0 scale-90 pointer-events-none"
                   }`}
                   title="Mở khóa màn hình"
                 >
@@ -1037,259 +1248,379 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
 
             {/* Custom Overlay Controls */}
             {!isLocked && (
-              <div 
+              <div
                 className={`absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40 flex flex-col justify-between p-4 transition-opacity duration-300 ${
-                  showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  showControls ? "opacity-100" : "opacity-0 pointer-events-none"
                 }`}
                 onClick={handlePlayerClick}
                 onTouchEnd={handlePlayerTouchEnd}
               >
-              {/* Top controls: Movie titles & Quick Episode list (Ẩn mượt mà khi chưa bấm phát) */}
-              <div className={`flex justify-between items-center controls-prevent-click transition-[opacity,transform] duration-300 ${
-                !isPlaying ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100'
-              }`}>
-                <div className="space-y-0.5">
-                  <h3 className="font-bold text-base text-white">{movie.name}</h3>
-                  <p className="text-xs text-slate-400 font-semibold">{activeEpisode.name}</p>
+                {/* Top controls: Movie titles & Quick Episode list (Ẩn mượt mà khi chưa bấm phát) */}
+                <div
+                  className={`flex justify-between items-center controls-prevent-click transition-[opacity,transform] duration-300 ${
+                    !isPlaying
+                      ? "opacity-0 pointer-events-none -translate-y-4"
+                      : "opacity-100"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <h3 className="font-bold text-base text-white">
+                      {movie.name}
+                    </h3>
+                    <p className="text-xs text-slate-400 font-semibold">
+                      {activeEpisode.name}
+                    </p>
+                  </div>
+
+                  {isLandscapeFullscreen && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowEpisodesDrawer(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 flex items-center gap-2 text-xs font-bold text-slate-200 cursor-pointer active:scale-95 transition-[transform,background-color,border-color] shadow-md"
+                      title="Danh sách tập"
+                    >
+                      <List className="w-4 h-4 text-slate-200" />
+                      <span>Chọn tập</span>
+                    </button>
+                  )}
                 </div>
 
+                {/* Screen Lock Button - Chỉ hiện khi ở chế độ màn hình ngang mobile */}
                 {isLandscapeFullscreen && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowEpisodesDrawer(true);
+                      setIsLocked(true);
+                      setShowControls(false);
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 flex items-center gap-2 text-xs font-bold text-slate-200 cursor-pointer active:scale-95 transition-[transform,background-color,border-color] shadow-md"
-                    title="Danh sách tập"
+                    className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-[transform,background-color,border-color] z-40"
+                    title="Khóa màn hình"
                   >
-                    <List className="w-4 h-4 text-slate-200" />
-                    <span>Chọn tập</span>
+                    <Unlock className="w-5 h-5 text-slate-200" />
                   </button>
                 )}
-              </div>
 
-              {/* Screen Lock Button - Chỉ hiện khi ở chế độ màn hình ngang mobile */}
-              {isLandscapeFullscreen && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsLocked(true);
-                    setShowControls(false);
-                  }}
-                  className="absolute left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-[transform,background-color,border-color] z-40"
-                  title="Khóa màn hình"
-                >
-                  <Unlock className="w-5 h-5 text-slate-200" />
-                </button>
-              )}
-
-              {/* Large Play/Pause & Skip Controls in the Center */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-5 sm:gap-8 z-10">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSkip(-10);
-                  }}
-                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
-                  title="Lùi 10 giây"
-                >
-                  <RotateCcw className="w-5 h-5 text-white" />
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    togglePlay();
-                  }}
-                  className="w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50 active:scale-95 duration-200"
-                  title={isPlaying ? "Tạm dừng" : "Phát video"}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-7 h-7 text-white fill-white" />
-                  ) : (
-                    <Play className="w-7 h-7 text-white fill-white ml-1" />
-                  )}
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSkip(10);
-                  }}
-                  className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
-                  title="Tua 10 giây"
-                >
-                  <RotateCw className="w-5 h-5 text-white" />
-                </button>
-              </div>
-
-              {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
-              <div className={`space-y-3 w-full controls-prevent-click transition-[opacity,transform] duration-300 ${
-                !isPlaying ? 'opacity-0 pointer-events-none translate-y-4' : 'opacity-100'
-              }`}>
-                
-                {/* Progress bar timeline */}
-                <div className="flex items-center gap-3">
-                  <span ref={currentTimeDisplayRef} className="text-xs text-slate-300 tabular-nums">
-                    0:00
-                  </span>
-                  <input
-                    ref={progressBarRef}
-                    type="range"
-                    min="0"
-                    max="0"
-                    defaultValue="0"
-                    onChange={handleSeekChange}
-                    className="player-slider w-full cursor-pointer focus:outline-none"
-                  />
-                  <span ref={durationDisplayRef} className="text-xs text-slate-300 tabular-nums">
-                    0:00
-                  </span>
-                </div>
-
-                {/* Controls action buttons row */}
-                <div className="flex justify-between items-center text-white">
-                  <div className="flex items-center gap-3 sm:gap-5">
-                    {/* Play/Pause Button */}
-                    <button onClick={togglePlay} className="hover:text-brand-rose cursor-pointer transition-colors" title={isPlaying ? "Tạm dừng" : "Phát video"}>
-                      {isPlaying ? (
-                        <Pause className="w-5.5 h-5.5 fill-white" />
-                      ) : (
-                        <Play className="w-5.5 h-5.5 fill-white" />
-                      )}
-                    </button>
-
-                    {/* Quick Next Episode Button - Chuyển tập tiếp theo nhanh */}
-                    {nextEp && (
-                      <button
-                        onClick={() => {
-                          if (isLandscapeFullscreen) {
-                            // In-place switch: đổi tập mà không thoát fullscreen
-                            setOverrideEpisode(nextEp);
-                          } else {
-                            router.push(`/xem-phim/${movie.slug}/${nextEp.slug}`);
-                          }
-                        }}
-                        className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors ml-0.5 active:scale-90 duration-100"
-                        title="Tập tiếp theo"
-                      >
-                        <SkipForward className="w-5 h-5" />
-                      </button>
-                    )}
-
-                    {/* Volume Bar slider - Hiển thị nút âm thanh trên mọi thiết bị, chỉ ẩn thanh slider ở mobile dọc */}
-                    <div className="flex items-center gap-2 group/volume ml-1 sm:ml-2">
-                      {volume === 0 ? (
-                        <button
-                          onClick={toggleMute}
-                          className="text-brand-rose hover:text-white cursor-pointer transition-colors"
-                          title="Bật tiếng"
-                        >
-                          <VolumeX className="w-5 h-5" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={toggleMute}
-                          className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
-                          title="Tắt tiếng"
-                        >
-                          <Volume2 className="w-5 h-5" />
-                        </button>
-                      )}
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={volume}
-                        onChange={handleVolumeChange}
-                        className="player-slider hidden sm:block w-16 cursor-pointer focus:outline-none"
-                        style={{
-                          background: `linear-gradient(to right, #E50914 0%, #E50914 ${volume * 100}%, #334155 ${volume * 100}%, #334155 100%)`,
-                          accentColor: '#E50914'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 sm:gap-4">
-                    {/* Picture-in-Picture Button */}
-                    {isPipSupported && playMode === 'hls' && (
-                      <button
-                        onClick={togglePictureInPicture}
-                        className="hover:text-brand-rose text-slate-300 cursor-pointer transition-colors"
-                        title="Xem dạng cửa sổ nổi"
-                      >
-                        <PipIcon />
-                      </button>
-                    )}
-
-                    {/* Fullscreen Button */}
-                    <button onClick={toggleFullscreen} className="hover:text-brand-cyan cursor-pointer">
-                      <Maximize className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
-          {/* Drawer danh sách tập phim trượt từ cạnh phải (Chỉ hiển thị khi xoay ngang fullscreen di động) */}
-          {isLandscapeFullscreen && (
-            <>
-              {/* Overlay mờ nền */}
-              <div 
-                className={`absolute inset-0 bg-black/60 z-[60] transition-opacity duration-300 ${
-                  showEpisodesDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowEpisodesDrawer(false);
-                }}
-                onTouchEnd={(e) => {
-                  e.stopPropagation();
-                  setShowEpisodesDrawer(false);
-                }}
-              />
-              
-              {/* Drawer Panel */}
-              <div 
-                className={`absolute top-0 right-0 h-full w-80 bg-slate-950/95 backdrop-blur-md border-l border-white/10 z-[70] flex flex-col p-6 shadow-2xl transition-transform duration-300 ease-out ${
-                  showEpisodesDrawer ? 'translate-x-0' : 'translate-x-full'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-shrink-0">
-                  <div className="space-y-1">
-                    <h4 className="font-black text-sm text-white uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-1.5 h-4 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
-                      Danh sách tập
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-medium">Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowEpisodesDrawer(false)}
-                    className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer active:scale-95 transition-[transform,background-color,color]"
+                {/* Large Play/Pause & Skip Controls in the Center */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-5 sm:gap-8 z-10">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSkip(-10);
+                    }}
+                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
+                    title="Lùi 10 giây"
                   >
-                    <X className="w-4 h-4" />
+                    <RotateCcw className="w-5 h-5 text-white" />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePlay();
+                    }}
+                    className="w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center border border-white/20 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-transform shadow-brand-violet/50 active:scale-95 duration-200"
+                    title={isPlaying ? "Tạm dừng" : "Phát video"}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-7 h-7 text-white fill-white" />
+                    ) : (
+                      <Play className="w-7 h-7 text-white fill-white ml-1" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSkip(10);
+                    }}
+                    className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/75 border border-white/10 flex items-center justify-center text-white cursor-pointer active:scale-95 hover:scale-105 active:duration-75 transition-[transform,background-color] duration-200"
+                    title="Tua 10 giây"
+                  >
+                    <RotateCw className="w-5 h-5 text-white" />
                   </button>
                 </div>
-                
-                {/* Body: Episode Grid/List Scrollable */}
-                <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
-                  {drawerEpisodeButtons}
+
+                {/* Bottom controls panel (Ẩn mượt mà khi chưa bấm phát) */}
+                <div
+                  className={`space-y-3 w-full controls-prevent-click transition-[opacity,transform] duration-300 ${
+                    !isPlaying
+                      ? "opacity-0 pointer-events-none translate-y-4"
+                      : "opacity-100"
+                  }`}
+                >
+                  {/* Progress bar timeline */}
+                  <div className="flex items-center gap-3">
+                    <span
+                      ref={currentTimeDisplayRef}
+                      className="text-xs text-slate-300 tabular-nums"
+                    >
+                      0:00
+                    </span>
+                    <input
+                      ref={progressBarRef}
+                      type="range"
+                      min="0"
+                      max="0"
+                      defaultValue="0"
+                      onChange={handleSeekChange}
+                      className="player-slider w-full cursor-pointer focus:outline-none"
+                    />
+                    <span
+                      ref={durationDisplayRef}
+                      className="text-xs text-slate-300 tabular-nums"
+                    >
+                      0:00
+                    </span>
+                  </div>
+
+                  {/* Controls action buttons row */}
+                  <div className="flex justify-between items-center text-white">
+                    <div className="flex items-center gap-3 sm:gap-5">
+                      {/* Play/Pause Button */}
+                      <button
+                        onClick={togglePlay}
+                        className="hover:text-brand-rose cursor-pointer transition-colors"
+                        title={isPlaying ? "Tạm dừng" : "Phát video"}
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-5.5 h-5.5 fill-white" />
+                        ) : (
+                          <Play className="w-5.5 h-5.5 fill-white" />
+                        )}
+                      </button>
+
+                      {/* Quick Next Episode Button - Chuyển tập tiếp theo nhanh */}
+                      {nextEp && (
+                        <button
+                          onClick={() => {
+                            if (isLandscapeFullscreen) {
+                              // In-place switch: đổi tập mà không thoát fullscreen
+                              setOverrideEpisode(nextEp);
+                            } else {
+                              router.push(
+                                `/xem-phim/${movie.slug}/${nextEp.slug}`,
+                              );
+                            }
+                          }}
+                          className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors ml-0.5 active:scale-90 duration-100"
+                          title="Tập tiếp theo"
+                        >
+                          <SkipForward className="w-5 h-5" />
+                        </button>
+                      )}
+
+                      {/* Volume Bar slider - Hiển thị nút âm thanh trên mọi thiết bị, chỉ ẩn thanh slider ở mobile dọc */}
+                      <div className="flex items-center gap-2 group/volume ml-1 sm:ml-2">
+                        {volume === 0 ? (
+                          <button
+                            onClick={toggleMute}
+                            className="text-brand-rose hover:text-white cursor-pointer transition-colors"
+                            title="Bật tiếng"
+                          >
+                            <VolumeX className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={toggleMute}
+                            className="text-slate-300 hover:text-brand-rose cursor-pointer transition-colors"
+                            title="Tắt tiếng"
+                          >
+                            <Volume2 className="w-5 h-5" />
+                          </button>
+                        )}
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={volume}
+                          onChange={handleVolumeChange}
+                          className="player-slider hidden sm:block w-16 cursor-pointer focus:outline-none"
+                          style={{
+                            background: `linear-gradient(to right, #E50914 0%, #E50914 ${volume * 100}%, #334155 ${volume * 100}%, #334155 100%)`,
+                            accentColor: "#E50914",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 sm:gap-4">
+                      {/* Playback Speed Button */}
+                      <div
+                        ref={speedMenuRef}
+                        className="relative controls-prevent-click"
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowSpeedMenu((prev) => !prev);
+                          }}
+                          className={`text-xs font-extrabold px-2 py-1 rounded-lg border cursor-pointer transition-all duration-200 active:scale-95 ${
+                            playbackRate !== 1
+                              ? "bg-brand-violet/20 border-brand-violet/50 text-brand-cyan hover:bg-brand-violet/30"
+                              : "bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/20 hover:bg-white/10"
+                          }`}
+                          title="Tốc độ phát"
+                        >
+                          {playbackRate}x
+                        </button>
+
+                        {/* Speed Menu Popup */}
+                        {showSpeedMenu && (
+                          <div
+                            className="absolute bottom-full right-0 mb-3 bg-slate-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/60 p-3 min-w-[180px] z-[80] animate-slide-up"
+                            onClick={(e) => e.stopPropagation()}
+                            onTouchEnd={(e) => e.stopPropagation()}
+                          >
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
+                              Tốc độ phát
+                            </p>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(
+                                (rate) => (
+                                  <button
+                                    key={rate}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      changePlaybackRate(rate);
+                                    }}
+                                    className={`py-2 px-1 text-xs font-bold rounded-xl border cursor-pointer transition-all duration-200 active:scale-95 ${
+                                      playbackRate === rate
+                                        ? "bg-gradient-brand border-transparent text-white shadow-lg shadow-brand-violet/30"
+                                        : "bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:border-white/15 hover:text-white"
+                                    }`}
+                                  >
+                                    {rate}x
+                                  </button>
+                                ),
+                              )}
+                            </div>
+
+                            {/* Custom speed input */}
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-1">
+                                Tùy chỉnh
+                              </p>
+                              <div className="flex gap-1.5">
+                                <input
+                                  type="number"
+                                  min="0.25"
+                                  max="16"
+                                  step="0.05"
+                                  value={customSpeedInput}
+                                  onChange={(e) =>
+                                    setCustomSpeedInput(e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    e.stopPropagation();
+                                    if (e.key === "Enter") applyCustomSpeed();
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder="0.25 – 16"
+                                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-violet/50 focus:bg-white/8 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    applyCustomSpeed();
+                                  }}
+                                  className="px-3 py-2 bg-gradient-brand text-white text-xs font-bold rounded-xl cursor-pointer hover:opacity-90 active:scale-95 transition-all duration-200 shadow-sm"
+                                >
+                                  OK
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Picture-in-Picture Button */}
+                      {isPipSupported && playMode === "hls" && (
+                        <button
+                          onClick={togglePictureInPicture}
+                          className="hover:text-brand-rose text-slate-300 cursor-pointer transition-colors"
+                          title="Xem dạng cửa sổ nổi"
+                        >
+                          <PipIcon />
+                        </button>
+                      )}
+
+                      {/* Fullscreen Button */}
+                      <button
+                        onClick={toggleFullscreen}
+                        className="hover:text-brand-cyan cursor-pointer"
+                      >
+                        <Maximize className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </>
-          )}
-        </div>
-      )}
+            )}
+
+            {/* Drawer danh sách tập phim trượt từ cạnh phải (Chỉ hiển thị khi xoay ngang fullscreen di động) */}
+            {isLandscapeFullscreen && (
+              <>
+                {/* Overlay mờ nền */}
+                <div
+                  className={`absolute inset-0 bg-black/60 z-[60] transition-opacity duration-300 ${
+                    showEpisodesDrawer
+                      ? "opacity-100"
+                      : "opacity-0 pointer-events-none"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowEpisodesDrawer(false);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    setShowEpisodesDrawer(false);
+                  }}
+                />
+
+                {/* Drawer Panel */}
+                <div
+                  className={`absolute top-0 right-0 h-full w-80 bg-slate-950/95 backdrop-blur-md border-l border-white/10 z-[70] flex flex-col p-6 shadow-2xl transition-transform duration-300 ease-out ${
+                    showEpisodesDrawer ? "translate-x-0" : "translate-x-full"
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-shrink-0">
+                    <div className="space-y-1">
+                      <h4 className="font-black text-sm text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-1.5 h-4 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
+                        Danh sách tập
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Server:{" "}
+                        {episodes[selectedServerIndex]?.server_name ||
+                          "Standard"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowEpisodesDrawer(false)}
+                      className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer active:scale-95 transition-[transform,background-color,color]"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Body: Episode Grid/List Scrollable */}
+                  <div className="flex-1 overflow-y-auto mt-4 pr-1 space-y-2 scrollbar-thin scrollbar-track-white/5 scrollbar-thumb-white/10">
+                    {drawerEpisodeButtons}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Play Embed Iframe Mode */}
-        {(playMode === 'embed' || !activeEpisode.link_m3u8) && (
+        {(playMode === "embed" || !activeEpisode.link_m3u8) && (
           <div className="relative w-full h-full">
             <iframe
               src={activeEpisode.link_embed}
@@ -1306,9 +1637,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         {showResumeToast && (
           <div className="absolute bottom-16 left-6 z-50 p-4 glass-panel border-brand-violet/50 rounded-2xl shadow-2xl flex items-center justify-between gap-6 animate-slide-up">
             <div className="space-y-0.5">
-              <h5 className="font-bold text-xs text-brand-cyan uppercase tracking-wider">Tiếp tục xem phim?</h5>
+              <h5 className="font-bold text-xs text-brand-cyan uppercase tracking-wider">
+                Tiếp tục xem phim?
+              </h5>
               <p className="text-xs text-slate-300">
-                Hệ thống phát hiện bạn xem dở ở phút <span className="font-bold text-white tabular-nums">{formatTime(savedTime)}</span>.
+                Hệ thống phát hiện bạn xem dở ở phút{" "}
+                <span className="font-bold text-white tabular-nums">
+                  {formatTime(savedTime)}
+                </span>
+                .
               </p>
             </div>
             <div className="flex gap-2">
@@ -1327,7 +1664,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
             </div>
           </div>
         )}
-
       </div>
 
       {/* Cụm chọn nguồn phát dự phòng (Play Mode) tích hợp dưới player */}
@@ -1335,21 +1671,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         <div className="flex flex-wrap items-center gap-2.5 p-3.5 bg-white/2 border border-white/5 rounded-2xl">
           <span className="text-xs font-bold text-slate-400">Nguồn phát:</span>
           <button
-            onClick={() => setPlayMode('hls')}
+            onClick={() => setPlayMode("hls")}
             className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer border active:scale-95 active:duration-75 ${
-              playMode === 'hls'
-                ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
-                : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+              playMode === "hls"
+                ? "bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10"
+                : "bg-white/5 hover:bg-white/8 text-slate-300 border-white/5"
             }`}
           >
             VIP
           </button>
           <button
-            onClick={() => setPlayMode('embed')}
+            onClick={() => setPlayMode("embed")}
             className={`px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer border active:scale-95 active:duration-75 ${
-              playMode === 'embed'
-                ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10'
-                : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+              playMode === "embed"
+                ? "bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md shadow-brand-violet/10"
+                : "bg-white/5 hover:bg-white/8 text-slate-300 border-white/5"
             }`}
           >
             Dự phòng
@@ -1361,10 +1697,22 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
       <div className="flex items-center justify-between gap-4 pt-3 pb-4 border-b border-slate-900/60">
         {/* Episode description stats */}
         <div className="min-w-0 flex-1">
-          <h1 className="text-base sm:text-xl font-black text-white truncate" title={movie.name}>{movie.name}</h1>
+          <h1
+            className="text-base sm:text-xl font-black text-white truncate"
+            title={movie.name}
+          >
+            {movie.name}
+          </h1>
           <p className="text-[11px] sm:text-xs text-slate-400 font-semibold truncate mt-0.5">
-            Đang phát: <span className="text-brand-rose font-bold">{activeEpisode.name}</span>
-            <span className="hidden xs:inline"> | Server: {episodes[selectedServerIndex]?.server_name || 'Standard'}</span>
+            Đang phát:{" "}
+            <span className="text-brand-rose font-bold">
+              {activeEpisode.name}
+            </span>
+            <span className="hidden xs:inline">
+              {" "}
+              | Server:{" "}
+              {episodes[selectedServerIndex]?.server_name || "Standard"}
+            </span>
           </p>
         </div>
 
@@ -1422,9 +1770,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
               <span className="w-1.5 h-4.5 bg-gradient-to-b from-brand-violet to-brand-rose rounded-full" />
               Danh Sách Tập Phim
             </h3>
-            <p className="text-xs text-slate-500 font-medium">Chuyển Danh sách tập hoặc đổi nguồn phát (Server) nếu bị lỗi tải.</p>
+            <p className="text-xs text-slate-500 font-medium">
+              Chuyển Danh sách tập hoặc đổi nguồn phát (Server) nếu bị lỗi tải.
+            </p>
           </div>
-          
+
           {/* Server Switch tabs */}
           {episodes.length > 1 && (
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 sm:pb-0">
@@ -1434,8 +1784,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
                   onClick={() => setSelectedServerIndex(idx)}
                   className={`px-3 py-1.5 text-xs font-black rounded-xl transition-[transform,background-color,border-color,color,box-shadow] cursor-pointer whitespace-nowrap border active:scale-95 active:duration-75 ${
                     selectedServerIndex === idx
-                      ? 'bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md'
-                      : 'bg-white/5 hover:bg-white/8 text-slate-300 border-white/5'
+                      ? "bg-gradient-to-r from-brand-violet to-brand-rose text-white border-transparent shadow-md"
+                      : "bg-white/5 hover:bg-white/8 text-slate-300 border-white/5"
                   }`}
                 >
                   {server.server_name}
@@ -1454,14 +1804,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({ movie, cur
         <div className="p-4 bg-white/2 border border-white/5 rounded-2xl flex items-start gap-3 mt-4">
           <AlertTriangle className="w-5 h-5 text-brand-rose flex-shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <h5 className="font-bold text-xs text-slate-300">Gặp sự cố khi tải phim?</h5>
+            <h5 className="font-bold text-xs text-slate-300">
+              Gặp sự cố khi tải phim?
+            </h5>
             <p className="text-xs text-slate-500 leading-normal font-medium">
-              Nếu phim không tải được, bạn vui lòng chuyển đổi nguồn phát bằng cách bấm nút **"Dự phòng"** hoặc đổi sang các server khác ở bảng trên để khắc phục sự cố.
+              Nếu phim không tải được, bạn vui lòng chuyển đổi nguồn phát bằng
+              cách bấm nút **"Dự phòng"** hoặc đổi sang các server khác ở bảng
+              trên để khắc phục sự cố.
             </p>
           </div>
         </div>
       </div>
-
     </div>
   );
 };
