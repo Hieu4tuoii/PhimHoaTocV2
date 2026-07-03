@@ -32,7 +32,10 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { MovieDetail, MovieServer, EpisodeData } from "@/types";
-import Hls from "hls.js";
+import type HlsType from "hls.js";
+
+// Performance: Lazy-load hls.js (~65KB gzipped) — chỉ tải khi thật sự cần phát HLS
+const loadHls = () => import("hls.js").then((m) => m.default);
 
 // SVG Icon tùy chỉnh cho Picture-in-Picture
 const PipIcon: React.FC = () => (
@@ -99,7 +102,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
   const prevVolumeRef = useRef(1);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const hlsRef = useRef<HlsType | null>(null);
 
   // Performance: Use refs for high-frequency values to avoid re-renders
   const currentTimeRef = useRef(0);
@@ -114,6 +117,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
   // Custom Controls States (only for low-frequency UI updates)
   const [isPlaying, setIsPlaying] = useState(false);
+  // Performance: Ref đồng bộ isPlaying để hot path (keyboard/mousemove) đọc mà không re-attach listener
+  const isPlayingRef = useRef(false);
+  isPlayingRef.current = isPlaying;
   const [volume, setVolume] = useState(1);
   const [showControls, setShowControls] = useState(true);
   // Performance: Ref đồng bộ showControls để hot path (timeupdate) đọc mà không re-attach listener
@@ -390,6 +396,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
     const video = videoRef.current;
     const hlsUrl = activeEpisode.link_m3u8;
+    let cancelled = false;
 
     // Clean up existing Hls instance
     if (hlsRef.current) {
@@ -397,6 +404,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       hlsRef.current = null;
     }
 
+    loadHls().then((Hls) => {
+    if (cancelled) return;
     if (Hls.isSupported()) {
       const isMobile =
         /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
@@ -461,8 +470,10 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       // browser does not support HLS at all, fallback to Embed
       setPlayMode("embed");
     }
+    });
 
     return () => {
+      cancelled = true;
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -523,15 +534,21 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     const startProgressSaving = () => {
       saveInterval = setInterval(() => {
         if (video.currentTime > 5 && video.duration > 0) {
-          saveWatchProgress(
-            movie.slug,
-            movie.name,
-            movie.thumb_url || movie.poster_url,
-            activeEpisode.slug,
-            activeEpisode.name,
-            video.currentTime,
-            video.duration,
-          );
+          const doSave = () =>
+            saveWatchProgress(
+              movie.slug,
+              movie.name,
+              movie.thumb_url || movie.poster_url,
+              activeEpisode.slug,
+              activeEpisode.name,
+              video.currentTime,
+              video.duration,
+            );
+          if ("requestIdleCallback" in window) {
+            requestIdleCallback(doSave);
+          } else {
+            doSave();
+          }
         }
       }, 15000);
     };
@@ -567,7 +584,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
     };
   }, [
-    activeEpisode,
     playMode,
     nextEp,
     movie.slug,
@@ -630,7 +646,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         setShowControls(true);
         if (controlsTimeoutRef.current)
           clearTimeout(controlsTimeoutRef.current);
-        if (isPlaying) {
+        if (isPlayingRef.current) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
@@ -641,7 +657,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         setShowControls(true);
         if (controlsTimeoutRef.current)
           clearTimeout(controlsTimeoutRef.current);
-        if (isPlaying) {
+        if (isPlayingRef.current) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
@@ -652,7 +668,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         setShowControls(true);
         if (controlsTimeoutRef.current)
           clearTimeout(controlsTimeoutRef.current);
-        if (isPlaying) {
+        if (isPlayingRef.current) {
           controlsTimeoutRef.current = setTimeout(() => {
             setShowControls(false);
           }, 3000);
@@ -664,7 +680,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [playMode, isLocked, isPlaying, handleSkip, togglePlay]);
+  }, [playMode, isLocked, handleSkip, togglePlay]);
 
   // ===== ZOOM helpers =====
   // Hiện chỉ báo mức zoom trong ~1.5s mỗi khi thay đổi, sau đó tự ẩn
@@ -1041,7 +1057,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     });
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 3000); // hide control bar after 3 seconds of inactivity
@@ -1050,7 +1066,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     setTimeout(() => {
       mouseMoveThrottleRef.current = false;
     }, 300);
-  }, [isPlaying]);
+  }, []);
 
   // Performance: Memoize danh sách tập trong drawer fullscreen — tránh reconcile 100+ nút mỗi khi controls toggle hoặc state khác đổi.
   const drawerEpisodeButtons = useMemo(
