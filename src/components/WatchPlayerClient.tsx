@@ -1175,15 +1175,15 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
             className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
             style={{ animation: "memePopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
           >
-            <div className="relative bg-black/85 backdrop-blur-xl rounded-3xl border-2 border-brand-rose/60 shadow-2xl shadow-brand-rose/30 p-5 max-w-[320px] w-[80%] text-center">
-              <p className="text-brand-rose font-extrabold text-sm sm:text-base mb-3 drop-shadow-lg tracking-wide">
+            <div className="relative bg-black/85 backdrop-blur-xl rounded-2xl landscape:rounded-xl border-2 border-brand-rose/60 shadow-2xl shadow-brand-rose/30 p-5 landscape:p-3 max-w-[320px] landscape:max-w-[260px] w-[80%] max-h-[90%] text-center">
+              <p className="text-brand-rose font-extrabold text-sm sm:text-base landscape:text-xs mb-3 landscape:mb-1.5 drop-shadow-lg tracking-wide">
                 Xem từ tốn thôi tên kia
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/anh-meme-con-cho-chi-tay-2.webp"
                 alt="Meme chó chỉ tay"
-                className="w-full rounded-2xl border border-white/10 shadow-lg"
+                className="w-full max-h-[50vh] landscape:max-h-[45vh] object-contain rounded-2xl landscape:rounded-xl border border-white/10 shadow-lg"
                 draggable={false}
               />
             </div>
