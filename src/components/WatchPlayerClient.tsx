@@ -93,6 +93,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
   const [customSpeedInput, setCustomSpeedInput] = useState("");
   const speedMenuRef = useRef<HTMLDivElement>(null);
 
+  // Meme popup troll khi đổi tốc độ phát
+  const [showMemePopup, setShowMemePopup] = useState(false);
+  const memeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const memeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // In-place episode switch: khi đang fullscreen, đổi tập mà không chuyển trang
   const [overrideEpisode, setOverrideEpisode] = useState<EpisodeData | null>(
     null,
@@ -1014,6 +1019,26 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     video.playbackRate = rate;
     setPlaybackRate(rate);
     setShowSpeedMenu(false);
+
+    // Troll: hiện meme popup + phát âm thanh khi đổi tốc độ (khác 1x)
+    if (rate !== 1) {
+      if (memeTimeoutRef.current) clearTimeout(memeTimeoutRef.current);
+      setShowMemePopup(true);
+      // Phát âm thanh boom
+      try {
+        if (!memeAudioRef.current) {
+          memeAudioRef.current = new Audio("/shocked-boom.mp3");
+        }
+        memeAudioRef.current.currentTime = 0;
+        memeAudioRef.current.play().catch(() => {});
+      } catch {
+        // Trình duyệt chặn autoplay — bỏ qua
+      }
+      // Tự ẩn popup sau 2 giây
+      memeTimeoutRef.current = setTimeout(() => {
+        setShowMemePopup(false);
+      }, 2000);
+    }
   }, []);
 
   // Áp dụng tốc độ custom từ input
@@ -1144,6 +1169,27 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         }`}
         onMouseMove={handleMouseMove}
       >
+        {/* Meme Popup Troll — hiện khi đổi tốc độ phát */}
+        {showMemePopup && (
+          <div
+            className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
+            style={{ animation: "memePopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
+          >
+            <div className="relative bg-black/85 backdrop-blur-xl rounded-3xl border-2 border-brand-rose/60 shadow-2xl shadow-brand-rose/30 p-5 max-w-[320px] w-[80%] text-center">
+              <p className="text-brand-rose font-extrabold text-sm sm:text-base mb-3 drop-shadow-lg tracking-wide">
+                Xem từ tốn thôi tên kia
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/anh-meme-con-cho-chi-tay-2.webp"
+                alt="Meme chó chỉ tay"
+                className="w-full rounded-2xl border border-white/10 shadow-lg"
+                draggable={false}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Play HLS m3u8 Mode */}
         {playMode === "hls" && activeEpisode.link_m3u8 && (
           <div
