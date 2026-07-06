@@ -74,7 +74,7 @@ export async function getMoviesByType(
     if (data.status) {
       return {
         status: true,
-        items: data.data.items,
+        items: data.data.items ?? [],
         pagination: data.data.params.pagination,
       };
     }
@@ -113,7 +113,7 @@ export async function searchMovies(
     if (data.status) {
       return {
         status: true,
-        items: data.data.items,
+        items: data.data.items ?? [],
         pagination: data.data.params.pagination,
       };
     }
@@ -178,7 +178,7 @@ export async function getMoviesByGenre(
     if (data.status) {
       return {
         status: true,
-        items: data.data.items,
+        items: data.data.items ?? [],
         pagination: data.data.params.pagination,
       };
     }
@@ -209,7 +209,7 @@ export async function getMoviesByCountry(
     if (data.status) {
       return {
         status: true,
-        items: data.data.items,
+        items: data.data.items ?? [],
         pagination: data.data.params.pagination,
       };
     }

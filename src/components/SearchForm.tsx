@@ -61,7 +61,7 @@ export const SearchForm: React.FC<SearchFormProps> = ({ initialKeyword = '', aut
       try {
         const data = await searchMovies(keyword.trim(), 1, 5); // Lấy top 5 kết quả
         if (data.status) {
-          setResults(data.items);
+          setResults(data.items ?? []);
         }
       } catch (error) {
         console.error('Instant search error on mobile:', error);
