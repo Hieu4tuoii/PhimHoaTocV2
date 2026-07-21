@@ -20,16 +20,13 @@ const mapPagination = (apiPagination: any, defaultLimit: number = 24): Paginatio
   };
 };
 
-// Helper function to build full image URL with WebP conversion API
+// Helper function to build full image URL (direct, no proxy)
 export const getImageUrl = (path: string | undefined): string => {
   if (!path) return ''; // fallback should be handled locally in React Native Image components
-  let originalUrl = '';
   if (path.startsWith('http://') || path.startsWith('https://')) {
-    originalUrl = path;
-  } else {
-    originalUrl = `${IMAGE_BASE_URL}/${path.startsWith('/') ? path.slice(1) : path}`;
+    return path;
   }
-  return `https://phimapi.com/image.php?url=${encodeURIComponent(originalUrl)}`;
+  return `${IMAGE_BASE_URL}/${path.startsWith('/') ? path.slice(1) : path}`;
 };
 
 // 1. Get new updated movies
