@@ -108,9 +108,9 @@ export default function WatchScreen() {
     try {
       if (Platform.OS === 'android') {
         // Set behavior FIRST so when bars are hidden they use overlay-swipe
-        await NavigationBar.setBehaviorAsync('overlay-swipe');
+        await (NavigationBar as any).setBehaviorAsync('overlay-swipe');
         await NavigationBar.setVisibilityAsync('hidden');
-        await NavigationBar.setBackgroundColorAsync('#00000001');
+        await (NavigationBar as any).setBackgroundColorAsync('#00000001');
       }
       // Hide status bar imperatively
       RNStatusBar.setHidden(true, 'fade');
@@ -123,7 +123,7 @@ export default function WatchScreen() {
     try {
       if (Platform.OS === 'android') {
         await NavigationBar.setVisibilityAsync('visible');
-        await NavigationBar.setBehaviorAsync('inset-swipe');
+        await (NavigationBar as any).setBehaviorAsync('inset-swipe');
       }
       RNStatusBar.setHidden(false, 'fade');
     } catch (e) {
