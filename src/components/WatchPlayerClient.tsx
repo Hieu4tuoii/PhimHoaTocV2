@@ -418,98 +418,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     }
   }, [showControls, updateProgressTime]);
 
-  // 3. Initialize HLS Player on m3u8 link change
-  useEffect(() => {
-    if (playMode !== "hls" || !videoRef.current || !activeEpisode.link_m3u8)
-      return;
-
-    const video = videoRef.current;
-    const hlsUrl = activeEpisode.link_m3u8;
-    let cancelled = false;
-
-    // Clean up existing Hls instance
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    loadHls().then((Hls) => {
-    if (cancelled) return;
-    if (Hls.isSupported()) {
-      const isMobile =
-        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-        (navigator.userAgent.includes("Mac") && "ontouchend" in document);
-      const hls = new Hls({
-        // Performance: Optimized HLS config for smoother streaming
-        maxMaxBufferLength: isMobile ? 30 : 60,
-        maxBufferSize: isMobile ? 30_000_000 : 60_000_000,
-        maxBufferHole: 0.5, // Allow small buffer holes
-        backBufferLength: isMobile ? 30 : 90,
-        enableWorker: true,
-        startLevel: -1, // Auto-detect best quality level
-        capLevelToPlayerSize: true, // Don't load resolution > player size
-      });
-      hlsRef.current = hls;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        // Hls loaded successfully — auto-play khi đổi tập in-place
-        if (overrideEpisodeRef.current) {
-          video.play().catch(() => {});
-        } else {
-          checkAndShowResume();
-        }
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error(
-                "HLS fatal network error, trying to recover...",
-                data,
-              );
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error(
-                "HLS fatal media error, trying to recover...",
-                data,
-              );
-              hls.recoverMediaError();
-              break;
-            default:
-              console.error(
-                "HLS unrecoverable error, switching to Embed Player...",
-                data,
-              );
-              setPlayMode("embed");
-              break;
-          }
-        }
-      });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Native HLS (mainly Safari iOS)
-      video.src = hlsUrl;
-      video.addEventListener("loadedmetadata", () => {
-        checkAndShowResume();
-      });
-    } else {
-      // browser does not support HLS at all, fallback to Embed
-      setPlayMode("embed");
-    }
-    });
-
-    return () => {
-      cancelled = true;
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
-  }, [activeEpisode.link_m3u8, playMode]);
-
   // Check watch progress of this episode to offer resume
   const checkAndShowResume = useCallback(() => {
     const progress = getWatchProgress(movie.slug, activeEpisode.slug);
@@ -534,6 +442,133 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     }
     setShowResumeToast(false);
   }, [savedTime]);
+
+  // 3. Initialize HLS Player on m3u8 link change
+  useEffect(() => {
+    if (playMode !== "hls" || !videoRef.current || !activeEpisode.link_m3u8)
+      return;
+
+    const video = videoRef.current;
+    const hlsUrl = activeEpisode.link_m3u8;
+    let cancelled = false;
+
+    // Clean up existing Hls instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    // Check if browser is iOS Safari (Native HLS without MSE support)
+    const isNativeHlsSafari =
+      video.canPlayType("application/vnd.apple.mpegurl") &&
+      (!("MediaSource" in window) || !(window as any).MediaSource);
+
+    if (isNativeHlsSafari) {
+      video.src = hlsUrl;
+      video.load();
+
+      const onLoadedMetadata = () => {
+        if (cancelled) return;
+        if (overrideEpisodeRef.current) {
+          video.play().catch(() => {});
+        } else {
+          checkAndShowResume();
+        }
+      };
+
+      const onNativeError = () => {
+        if (cancelled) return;
+        console.warn("Native HLS failed on Safari, switching to Embed...", video.error);
+        setPlayMode("embed");
+      };
+
+      video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
+      video.addEventListener("error", onNativeError, { once: true });
+
+      return () => {
+        cancelled = true;
+        video.removeEventListener("loadedmetadata", onLoadedMetadata);
+        video.removeEventListener("error", onNativeError);
+      };
+    }
+
+    // Other browsers (Android, Desktop Chrome, Firefox, Edge, macOS Safari): Load hls.js
+    loadHls().then((Hls) => {
+      if (cancelled) return;
+      if (Hls.isSupported()) {
+        const isMobile =
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+          (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+        const hls = new Hls({
+          // Performance: Optimized HLS config for smoother streaming
+          maxMaxBufferLength: isMobile ? 30 : 60,
+          maxBufferSize: isMobile ? 30_000_000 : 60_000_000,
+          maxBufferHole: 0.5, // Allow small buffer holes
+          backBufferLength: isMobile ? 30 : 90,
+          enableWorker: true,
+          startLevel: -1, // Auto-detect best quality level
+          capLevelToPlayerSize: true, // Don't load resolution > player size
+        });
+        hlsRef.current = hls;
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          // Hls loaded successfully — auto-play khi đổi tập in-place
+          if (overrideEpisodeRef.current) {
+            video.play().catch(() => {});
+          } else {
+            checkAndShowResume();
+          }
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error(
+                  "HLS fatal network error, trying to recover...",
+                  data,
+                );
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error(
+                  "HLS fatal media error, trying to recover...",
+                  data,
+                );
+                hls.recoverMediaError();
+                break;
+              default:
+                console.error(
+                  "HLS unrecoverable error, switching to Embed Player...",
+                  data,
+                );
+                setPlayMode("embed");
+                break;
+            }
+          }
+        });
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS for Safari desktop
+        video.src = hlsUrl;
+        video.load();
+        video.addEventListener("loadedmetadata", () => checkAndShowResume(), { once: true });
+        video.addEventListener("error", () => setPlayMode("embed"), { once: true });
+      } else {
+        // Browser does not support HLS at all, fallback to Embed
+        setPlayMode("embed");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [activeEpisode.link_m3u8, playMode, checkAndShowResume]);
 
   // 4. Progress Auto-Save Timer & Video events hook
   useEffect(() => {
@@ -668,11 +703,20 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     if (!video) return;
 
     if (video.paused) {
-      video.play().catch((err) => console.error("Error playing video:", err));
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Error playing video:", err);
+          if (playMode === "hls" && activeEpisode.link_embed) {
+            console.warn("Falling back to embed player on play error...");
+            setPlayMode("embed");
+          }
+        });
+      }
     } else {
       video.pause();
     }
-  }, []);
+  }, [playMode, activeEpisode.link_embed]);
 
   // Keyboard navigation shortcuts for PC (ArrowLeft/ArrowRight to seek, Space to play/pause)
   useEffect(() => {
@@ -930,13 +974,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
   // Kiểm tra xem event target có phải interactive element không
   const isInteractiveTarget = useCallback((target: HTMLElement): boolean => {
+    if (!target) return false;
     const interactiveTags = ["BUTTON", "INPUT", "A", "SELECT", "TEXTAREA"];
-    // Kiểm tra chính element hoặc parent gần nhất
     if (interactiveTags.includes(target.tagName)) return true;
-    if (target.closest("button, input, a, .controls-prevent-click"))
-      return true;
-    // SVG icon bên trong button
-    if (target.closest("svg")?.closest("button")) return true;
+    if (typeof target.closest === "function") {
+      if (target.closest("button, input, a, select, textarea, .controls-prevent-click"))
+        return true;
+      if (target.closest("svg")?.closest("button")) return true;
+    }
     return false;
   }, []);
 
@@ -1311,6 +1356,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
               onClick={handlePlayerClick}
               onTouchEnd={handlePlayerTouchEnd}
               playsInline
+              preload="metadata"
               style={{
                 transformOrigin: "center center",
                 willChange: isLandscapeFullscreen ? "transform" : undefined,
