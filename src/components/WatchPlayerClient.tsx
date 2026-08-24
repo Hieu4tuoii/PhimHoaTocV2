@@ -22,6 +22,7 @@ import {
   Volume2,
   VolumeX,
   Maximize,
+  Minimize,
   PlayCircle,
   Lock,
   Unlock,
@@ -83,6 +84,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
   // Custom States cho các nút điều khiển mới
   const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
+  const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
+  const isPseudoFullscreenRef = useRef(false);
+  isPseudoFullscreenRef.current = isPseudoFullscreen;
   const [isPipSupported, setIsPipSupported] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
@@ -248,73 +252,134 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     return () => document.body.classList.remove("is-watching");
   }, []);
 
+  // Helper kiểm tra trạng thái fullscreen mở rộng (hỗ trợ cả chuẩn HTML5, webkit prefixed, và pseudo-fullscreen trên iPhone)
+  const getIsFullscreen = useCallback((): boolean => {
+    if (typeof document === "undefined") return false;
+    return Boolean(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement ||
+      isPseudoFullscreenRef.current
+    );
+  }, []);
+
+  const checkLandscapeFullscreen = useCallback(() => {
+    const isFS = Boolean(
+      (typeof document !== "undefined" &&
+        (document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement)) ||
+      isPseudoFullscreenRef.current
+    );
+    const isLandscape =
+      typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+    setIsLandscapeFullscreen(isFS && isLandscape);
+  }, []);
+
+  // Cleanup khi rời fullscreen (native hoặc pseudo)
+  const handleExitFullscreenCleanup = useCallback(() => {
+    setShowEpisodesDrawer(false);
+    setIsLocked(false);
+    videoScaleRef.current = 1;
+    videoOffsetRef.current = { x: 0, y: 0 };
+    setVideoTransition(true);
+    applyVideoTransform();
+    updateZoomDisplay();
+    try {
+      if (screen.orientation && (screen.orientation as any).unlock) {
+        (screen.orientation as any).unlock();
+      }
+    } catch {}
+    // Sync URL nếu đã đổi tập in-place khi fullscreen
+    setOverrideEpisode((prev) => {
+      if (prev && prev.slug !== currentEpisode.slug) {
+        router.replace(`/xem-phim/${movie.slug}/${prev.slug}`, {
+          scroll: false,
+        });
+      }
+      return null;
+    });
+  }, [
+    applyVideoTransform,
+    setVideoTransition,
+    updateZoomDisplay,
+    currentEpisode.slug,
+    movie.slug,
+    router,
+  ]);
+
+  // Effect quản lý pseudo fullscreen cho iPhone / iOS Safari
+  useEffect(() => {
+    if (isPseudoFullscreen) {
+      document.body.style.overflow = "hidden";
+      checkLandscapeFullscreen();
+      try {
+        if (screen.orientation && (screen.orientation as any).lock) {
+          (screen.orientation as any).lock("landscape").catch(() => {});
+        }
+      } catch {}
+    } else {
+      document.body.style.overflow = "";
+      checkLandscapeFullscreen();
+      handleExitFullscreenCleanup();
+    }
+  }, [isPseudoFullscreen, checkLandscapeFullscreen, handleExitFullscreenCleanup]);
+
   // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset & PiP check
   useEffect(() => {
-    const checkLandscapeFullscreen = () => {
-      const isFS = !!document.fullscreenElement;
-      const isLandscape = window.innerWidth > window.innerHeight;
-      setIsLandscapeFullscreen(isFS && isLandscape);
-    };
-
     const handleFullscreenChange = () => {
+      const isNativeFS = Boolean(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
       checkLandscapeFullscreen();
-      if (document.fullscreenElement) {
-        // Vào fullscreen (bất kể nguồn: nút custom hay iframe native) → xoay ngang
+      if (isNativeFS) {
         try {
           (screen.orientation as any).lock("landscape");
-        } catch {
-          // Orientation lock không được hỗ trợ — bỏ qua
-        }
-      } else {
-        // User thoát fullscreen (Escape/Back) → unlock orientation và đóng drawer
-        setShowEpisodesDrawer(false);
-        setIsLocked(false);
-        // Reset zoom khi rời fullscreen — luôn trở về kích thước tự nhiên
-        videoScaleRef.current = 1;
-        videoOffsetRef.current = { x: 0, y: 0 };
-        setVideoTransition(true);
-        applyVideoTransform();
-        updateZoomDisplay();
-        try {
-          (screen.orientation as any).unlock();
-        } catch {
-          // Không hỗ trợ — bỏ qua
-        }
-        // Sync URL nếu đã đổi tập in-place khi fullscreen
-        setOverrideEpisode((prev) => {
-          if (prev && prev.slug !== currentEpisode.slug) {
-            router.replace(`/xem-phim/${movie.slug}/${prev.slug}`, {
-              scroll: false,
-            });
-          }
-          return null;
-        });
+        } catch {}
+      } else if (!isPseudoFullscreenRef.current) {
+        handleExitFullscreenCleanup();
       }
     };
 
     const handleResize = () => {
-      if (document.fullscreenElement) {
-        checkLandscapeFullscreen();
-      }
+      checkLandscapeFullscreen();
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
     window.addEventListener("resize", handleResize, { passive: true });
+    window.addEventListener("orientationchange", handleResize, { passive: true });
 
-    // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không
-    setIsPipSupported(
-      typeof document !== "undefined" &&
-        document.pictureInPictureEnabled &&
-        !!videoRef.current,
+    // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không (hỗ trợ cả chuẩn W3C và WebKit iOS)
+    const video = videoRef.current;
+    const standardPip =
+      typeof document !== "undefined" && Boolean(document.pictureInPictureEnabled);
+    const webkitPip = Boolean(
+      video &&
+        (video as any).webkitSupportsPresentationMode &&
+        typeof (video as any).webkitSetPresentationMode === "function" &&
+        (video as any).webkitSupportsPresentationMode("picture-in-picture")
     );
+    setIsPipSupported(Boolean((standardPip || webkitPip) && !!videoRef.current));
 
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
-  }, []);
+  }, [checkLandscapeFullscreen, handleExitFullscreenCleanup]);
 
   // 2.2. Auto-hide controls based on play/pause status
   useEffect(() => {
@@ -468,9 +533,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       // Native HLS (mainly Safari iOS)
       video.src = hlsUrl;
-      video.addEventListener("loadedmetadata", () => {
-        checkAndShowResume();
-      });
+      video.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (overrideEpisodeRef.current) {
+            video.play().catch(() => {});
+          } else {
+            checkAndShowResume();
+          }
+        },
+        { once: true },
+      );
     } else {
       // browser does not support HLS at all, fallback to Embed
       setPlayMode("embed");
@@ -645,6 +718,12 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         return;
       }
 
+      if (e.key === "Escape" && isPseudoFullscreenRef.current) {
+        e.preventDefault();
+        setIsPseudoFullscreen(false);
+        return;
+      }
+
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         handleSkip(-10);
@@ -735,8 +814,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
-      // Chỉ cho phép zoom khi đang fullscreen
-      if (!document.fullscreenElement) return;
+      // Chỉ cho phép zoom khi đang fullscreen (native hoặc pseudo)
+      if (!getIsFullscreen()) return;
       e.preventDefault();
       const currentScale = videoScaleRef.current;
       // Bước zoom tỉ lệ thuận với scale hiện tại → cảm giác mượt ở mọi mức
@@ -760,7 +839,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (!document.fullscreenElement) return;
+      if (!getIsFullscreen()) return;
       if (e.touches.length === 2) {
         const t1 = e.touches[0];
         const t2 = e.touches[1];
@@ -860,6 +939,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     applyVideoTransform,
     setVideoTransition,
     updateZoomDisplay,
+    getIsFullscreen,
   ]);
 
   // Logic chung toggle controls / play — dùng cho cả click lẫn touch
@@ -960,27 +1040,56 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     const playerContainer = playerContainerRef.current;
     if (!playerContainer) return;
 
-    if (!document.fullscreenElement) {
-      try {
-        await playerContainer.requestFullscreen();
-        // Thử xoay ngang khi vào fullscreen (mobile/tablet)
+    const isFS = getIsFullscreen();
+
+    if (!isFS) {
+      // 1. Chuẩn HTML5 Fullscreen API (Desktop Chrome, Firefox, Android Chrome)
+      if (playerContainer.requestFullscreen) {
         try {
-          await (screen.orientation as any).lock("landscape");
-        } catch {
-          // Orientation lock không được hỗ trợ hoặc bị từ chối — bỏ qua
+          await playerContainer.requestFullscreen();
+          try {
+            if (screen.orientation && (screen.orientation as any).lock) {
+              await (screen.orientation as any).lock("landscape");
+            }
+          } catch {}
+          return;
+        } catch (err) {
+          console.warn(
+            "requestFullscreen error, falling back to pseudo fullscreen:",
+            err,
+          );
         }
-      } catch (err) {
-        console.error("Fullscreen error:", err);
       }
+      // 2. WebKit prefixed requestFullscreen (Safari Desktop / iPadOS)
+      if ((playerContainer as any).webkitRequestFullscreen) {
+        try {
+          await (playerContainer as any).webkitRequestFullscreen();
+          return;
+        } catch (err) {
+          console.warn(
+            "webkitRequestFullscreen error, falling back to pseudo fullscreen:",
+            err,
+          );
+        }
+      }
+      // 3. Fallback cho iPhone / iOS Safari: CSS Pseudo-Fullscreen giữ nguyên 100% custom UI & gesture
+      setIsPseudoFullscreen(true);
     } else {
-      try {
-        (screen.orientation as any).unlock();
-      } catch {
-        // Không hỗ trợ orientation unlock — bỏ qua
+      // Thoát fullscreen
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch {}
+      } else if ((document as any).webkitExitFullscreen) {
+        try {
+          await (document as any).webkitExitFullscreen();
+        } catch {}
       }
-      document.exitFullscreen();
+      if (isPseudoFullscreen) {
+        setIsPseudoFullscreen(false);
+      }
     }
-  }, []);
+  }, [getIsFullscreen, isPseudoFullscreen]);
 
   const togglePictureInPicture = useCallback(async () => {
     const video = videoRef.current;
@@ -989,8 +1098,19 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     try {
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
-      } else {
+      } else if (video.requestPictureInPicture) {
         await video.requestPictureInPicture();
+      } else if (
+        (video as any).webkitSupportsPresentationMode &&
+        typeof (video as any).webkitSetPresentationMode === "function"
+      ) {
+        // Hỗ trợ Picture-in-Picture trên iOS Safari
+        const currentMode = (video as any).webkitPresentationMode;
+        (video as any).webkitSetPresentationMode(
+          currentMode === "picture-in-picture"
+            ? "inline"
+            : "picture-in-picture",
+        );
       }
     } catch (err) {
       console.error("Picture-in-Picture error:", err);
@@ -1150,7 +1270,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
   );
 
   return (
-    <div className="w-full space-y-8 animate-slide-up">
+    <div
+      className={`w-full space-y-8 ${isPseudoFullscreen ? "" : "animate-slide-up"}`}
+    >
       {/* 1. CINEMA BACKDROP OVERLAY OVER WHOLE PAGE — chỉ render khi bật cinema mode */}
       {isCinemaMode && (
         <div
@@ -1163,6 +1285,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       <div
         ref={playerContainerRef}
         className={`custom-player-container relative aspect-video w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full bg-black rounded-none sm:rounded-2xl overflow-hidden border-0 sm:border border-slate-800/80 shadow-2xl z-40 transition-[box-shadow,transform] duration-500 ${
+          isPseudoFullscreen ? "is-pseudo-fullscreen" : ""
+        } ${
           isCinemaMode
             ? "ring-4 ring-brand-violet/50 shadow-brand-violet/40 scale-102"
             : "shadow-black/60"
@@ -1612,9 +1736,14 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
                       {/* Fullscreen Button */}
                       <button
                         onClick={toggleFullscreen}
-                        className="hover:text-brand-cyan cursor-pointer"
+                        className="hover:text-brand-cyan cursor-pointer p-1"
+                        title={getIsFullscreen() ? "Thu nhỏ" : "Toàn màn hình"}
                       >
-                        <Maximize className="w-5 h-5" />
+                        {getIsFullscreen() ? (
+                          <Minimize className="w-5 h-5" />
+                        ) : (
+                          <Maximize className="w-5 h-5" />
+                        )}
                       </button>
                     </div>
                   </div>
