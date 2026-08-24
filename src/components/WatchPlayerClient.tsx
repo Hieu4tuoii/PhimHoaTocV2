@@ -458,41 +458,6 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       hlsRef.current = null;
     }
 
-    // Check if browser is iOS Safari (Native HLS without MSE support)
-    const isNativeHlsSafari =
-      video.canPlayType("application/vnd.apple.mpegurl") &&
-      (!("MediaSource" in window) || !(window as any).MediaSource);
-
-    if (isNativeHlsSafari) {
-      video.src = hlsUrl;
-      video.load();
-
-      const onLoadedMetadata = () => {
-        if (cancelled) return;
-        if (overrideEpisodeRef.current) {
-          video.play().catch(() => {});
-        } else {
-          checkAndShowResume();
-        }
-      };
-
-      const onNativeError = () => {
-        if (cancelled) return;
-        console.warn("Native HLS failed on Safari, switching to Embed...", video.error);
-        setPlayMode("embed");
-      };
-
-      video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
-      video.addEventListener("error", onNativeError, { once: true });
-
-      return () => {
-        cancelled = true;
-        video.removeEventListener("loadedmetadata", onLoadedMetadata);
-        video.removeEventListener("error", onNativeError);
-      };
-    }
-
-    // Other browsers (Android, Desktop Chrome, Firefox, Edge, macOS Safari): Load hls.js
     loadHls().then((Hls) => {
       if (cancelled) return;
       if (Hls.isSupported()) {
@@ -526,38 +491,36 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error(
+                console.warn(
                   "HLS fatal network error, trying to recover...",
                   data,
                 );
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error(
+                console.warn(
                   "HLS fatal media error, trying to recover...",
                   data,
                 );
                 hls.recoverMediaError();
                 break;
               default:
-                console.error(
-                  "HLS unrecoverable error, switching to Embed Player...",
-                  data,
-                );
-                setPlayMode("embed");
+                console.warn("HLS error event:", data);
                 break;
             }
           }
         });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS for Safari desktop
+        // Native HLS (mainly Safari iOS & macOS)
         video.src = hlsUrl;
-        video.load();
-        video.addEventListener("loadedmetadata", () => checkAndShowResume(), { once: true });
-        video.addEventListener("error", () => setPlayMode("embed"), { once: true });
-      } else {
-        // Browser does not support HLS at all, fallback to Embed
-        setPlayMode("embed");
+        const onLoadedMetadata = () => {
+          if (overrideEpisodeRef.current) {
+            video.play().catch(() => {});
+          } else {
+            checkAndShowResume();
+          }
+        };
+        video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
       }
     });
 
@@ -703,20 +666,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     if (!video) return;
 
     if (video.paused) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Error playing video:", err);
-          if (playMode === "hls" && activeEpisode.link_embed) {
-            console.warn("Falling back to embed player on play error...");
-            setPlayMode("embed");
-          }
-        });
-      }
+      video.play().catch((err) => console.error("Error playing video:", err));
     } else {
       video.pause();
     }
-  }, [playMode, activeEpisode.link_embed]);
+  }, []);
 
   // Keyboard navigation shortcuts for PC (ArrowLeft/ArrowRight to seek, Space to play/pause)
   useEffect(() => {
@@ -1069,6 +1023,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
           console.error("Standard fullscreen error, fallback to webkitEnterFullscreen:", err);
           if (video && (video as any).webkitEnterFullscreen) {
             try {
+              if (video.paused) video.play().catch(() => {});
               (video as any).webkitEnterFullscreen();
             } catch (vErr) {
               console.error("iOS webkitEnterFullscreen fallback error:", vErr);
@@ -1084,6 +1039,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
           console.error("webkitRequestFullscreen error:", err);
           if (video && (video as any).webkitEnterFullscreen) {
             try {
+              if (video.paused) video.play().catch(() => {});
               (video as any).webkitEnterFullscreen();
             } catch (vErr) {
               console.error("iOS webkitEnterFullscreen fallback error:", vErr);
@@ -1094,6 +1050,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       // 3. iOS Safari trên iPhone: API webkitEnterFullscreen trực tiếp trên thẻ <video>
       else if (video && (video as any).webkitEnterFullscreen) {
         try {
+          if (video.paused) video.play().catch(() => {});
           (video as any).webkitEnterFullscreen();
         } catch (err) {
           console.error("iOS webkitEnterFullscreen error:", err);
@@ -1843,9 +1800,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
               src={activeEpisode.link_embed}
               className="w-full h-full border-0"
               allowFullScreen
-              allow="fullscreen; autoplay; encrypted-media"
-              // Sandbox integration to block aggressive popup ads
-              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+              allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
             />
           </div>
         )}
