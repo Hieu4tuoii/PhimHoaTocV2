@@ -57,6 +57,18 @@ const PipIcon: React.FC = () => (
   </svg>
 );
 
+// Helper kiểm tra fullscreen đa nền tảng (bao gồm cả Safari iOS WebKit)
+const getIsFullscreen = (video?: HTMLVideoElement | null): boolean => {
+  if (typeof document === "undefined") return false;
+  return !!(
+    document.fullscreenElement ||
+    (document as any).webkitFullscreenElement ||
+    (document as any).mozFullScreenElement ||
+    (document as any).msFullscreenElement ||
+    (video as any)?.webkitDisplayingFullscreen
+  );
+};
+
 interface WatchPlayerClientProps {
   movie: MovieDetail;
   currentEpisode: EpisodeData;
@@ -251,17 +263,20 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
   // 2.1. Cleanup control & resume timers on unmount + fullscreen orientation reset & PiP check
   useEffect(() => {
     const checkLandscapeFullscreen = () => {
-      const isFS = !!document.fullscreenElement;
+      const isFS = getIsFullscreen(videoRef.current);
       const isLandscape = window.innerWidth > window.innerHeight;
       setIsLandscapeFullscreen(isFS && isLandscape);
     };
 
     const handleFullscreenChange = () => {
       checkLandscapeFullscreen();
-      if (document.fullscreenElement) {
+      const isFS = getIsFullscreen(videoRef.current);
+      if (isFS) {
         // Vào fullscreen (bất kể nguồn: nút custom hay iframe native) → xoay ngang
         try {
-          (screen.orientation as any).lock("landscape");
+          if (screen.orientation && (screen.orientation as any).lock) {
+            (screen.orientation as any).lock("landscape");
+          }
         } catch {
           // Orientation lock không được hỗ trợ — bỏ qua
         }
@@ -276,7 +291,9 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         applyVideoTransform();
         updateZoomDisplay();
         try {
-          (screen.orientation as any).unlock();
+          if (screen.orientation && (screen.orientation as any).unlock) {
+            (screen.orientation as any).unlock();
+          }
         } catch {
           // Không hỗ trợ — bỏ qua
         }
@@ -293,28 +310,35 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     };
 
     const handleResize = () => {
-      if (document.fullscreenElement) {
+      if (getIsFullscreen(videoRef.current)) {
         checkLandscapeFullscreen();
       }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
     window.addEventListener("resize", handleResize, { passive: true });
 
     // Kiểm tra xem trình duyệt có hỗ trợ Picture-in-Picture hay không
     setIsPipSupported(
       typeof document !== "undefined" &&
-        document.pictureInPictureEnabled &&
+        (Boolean(document.pictureInPictureEnabled) ||
+          Boolean((videoRef.current as any)?.webkitSupportsPresentationMode)) &&
         !!videoRef.current,
     );
 
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
       window.removeEventListener("resize", handleResize);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
     };
-  }, []);
+  }, [applyVideoTransform, setVideoTransition, updateZoomDisplay, currentEpisode.slug, movie.slug, router]);
 
   // 2.2. Auto-hide controls based on play/pause status
   useEffect(() => {
@@ -558,10 +582,29 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       }, 15000);
     };
 
+    // iOS WebKit Native Video Fullscreen event handlers
+    const handleWebkitBeginFullscreen = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      setIsLandscapeFullscreen(isLandscape);
+    };
+
+    const handleWebkitEndFullscreen = () => {
+      setIsLandscapeFullscreen(false);
+      setShowEpisodesDrawer(false);
+      setIsLocked(false);
+      videoScaleRef.current = 1;
+      videoOffsetRef.current = { x: 0, y: 0 };
+      setVideoTransition(true);
+      applyVideoTransform();
+      updateZoomDisplay();
+    };
+
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("durationchange", handleDurationChange);
+    video.addEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
+    video.addEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
 
     let nextEpisodeTimeout: NodeJS.Timeout;
 
@@ -584,6 +627,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("durationchange", handleDurationChange);
+      video.removeEventListener("webkitbeginfullscreen", handleWebkitBeginFullscreen);
+      video.removeEventListener("webkitendfullscreen", handleWebkitEndFullscreen);
       video.removeEventListener("ended", handleEnded);
       clearInterval(saveInterval);
       if (nextEpisodeTimeout) clearTimeout(nextEpisodeTimeout);
@@ -736,7 +781,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
     const onWheel = (e: WheelEvent) => {
       // Chỉ cho phép zoom khi đang fullscreen
-      if (!document.fullscreenElement) return;
+      if (!getIsFullscreen(videoRef.current)) return;
       e.preventDefault();
       const currentScale = videoScaleRef.current;
       // Bước zoom tỉ lệ thuận với scale hiện tại → cảm giác mượt ở mọi mức
@@ -760,7 +805,7 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      if (!document.fullscreenElement) return;
+      if (!getIsFullscreen(videoRef.current)) return;
       if (e.touches.length === 2) {
         const t1 = e.touches[0];
         const t2 = e.touches[1];
@@ -958,27 +1003,82 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
   const toggleFullscreen = useCallback(async () => {
     const playerContainer = playerContainerRef.current;
+    const video = videoRef.current;
     if (!playerContainer) return;
 
-    if (!document.fullscreenElement) {
-      try {
-        await playerContainer.requestFullscreen();
-        // Thử xoay ngang khi vào fullscreen (mobile/tablet)
+    const isFS = getIsFullscreen(video);
+
+    if (!isFS) {
+      // 1. Chuẩn HTML5 Fullscreen API (Desktop Chrome, Firefox, Edge, Android Chrome)
+      if (playerContainer.requestFullscreen) {
         try {
-          await (screen.orientation as any).lock("landscape");
-        } catch {
-          // Orientation lock không được hỗ trợ hoặc bị từ chối — bỏ qua
+          await playerContainer.requestFullscreen();
+          try {
+            if (screen.orientation && (screen.orientation as any).lock) {
+              await (screen.orientation as any).lock("landscape");
+            }
+          } catch {
+            // Orientation lock không được hỗ trợ hoặc bị từ chối
+          }
+        } catch (err) {
+          console.error("Standard fullscreen error, fallback to webkitEnterFullscreen:", err);
+          if (video && (video as any).webkitEnterFullscreen) {
+            try {
+              (video as any).webkitEnterFullscreen();
+            } catch (vErr) {
+              console.error("iOS webkitEnterFullscreen fallback error:", vErr);
+            }
+          }
         }
-      } catch (err) {
-        console.error("Fullscreen error:", err);
+      }
+      // 2. WebKit prefixed requestFullscreen (Safari Desktop / iPadOS)
+      else if ((playerContainer as any).webkitRequestFullscreen) {
+        try {
+          await (playerContainer as any).webkitRequestFullscreen();
+        } catch (err) {
+          console.error("webkitRequestFullscreen error:", err);
+          if (video && (video as any).webkitEnterFullscreen) {
+            try {
+              (video as any).webkitEnterFullscreen();
+            } catch (vErr) {
+              console.error("iOS webkitEnterFullscreen fallback error:", vErr);
+            }
+          }
+        }
+      }
+      // 3. iOS Safari trên iPhone: API webkitEnterFullscreen trực tiếp trên thẻ <video>
+      else if (video && (video as any).webkitEnterFullscreen) {
+        try {
+          (video as any).webkitEnterFullscreen();
+        } catch (err) {
+          console.error("iOS webkitEnterFullscreen error:", err);
+        }
       }
     } else {
-      try {
-        (screen.orientation as any).unlock();
-      } catch {
-        // Không hỗ trợ orientation unlock — bỏ qua
+      if (document.exitFullscreen) {
+        try {
+          await document.exitFullscreen();
+        } catch (err) {
+          console.error("exitFullscreen error:", err);
+        }
+      } else if ((document as any).webkitExitFullscreen) {
+        try {
+          (document as any).webkitExitFullscreen();
+        } catch (err) {
+          console.error("webkitExitFullscreen error:", err);
+        }
+      } else if (video && (video as any).webkitExitFullscreen) {
+        try {
+          (video as any).webkitExitFullscreen();
+        } catch (err) {
+          console.error("video.webkitExitFullscreen error:", err);
+        }
       }
-      document.exitFullscreen();
+      try {
+        if (screen.orientation && (screen.orientation as any).unlock) {
+          (screen.orientation as any).unlock();
+        }
+      } catch {}
     }
   }, []);
 
@@ -989,8 +1089,17 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     try {
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
-      } else {
+      } else if (video.requestPictureInPicture) {
         await video.requestPictureInPicture();
+      } else if (
+        (video as any).webkitSupportsPresentationMode &&
+        typeof (video as any).webkitSetPresentationMode === "function"
+      ) {
+        // Hỗ trợ Picture-in-Picture trên iOS Safari
+        const currentMode = (video as any).webkitPresentationMode;
+        (video as any).webkitSetPresentationMode(
+          currentMode === "picture-in-picture" ? "inline" : "picture-in-picture",
+        );
       }
     } catch (err) {
       console.error("Picture-in-Picture error:", err);
