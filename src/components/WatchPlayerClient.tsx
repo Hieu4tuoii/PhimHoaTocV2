@@ -150,6 +150,11 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
   // Performance: scale/offset không phải React state — pinch/wheel ghi trực tiếp video.style ở 60Hz mà không re-render.
   const MIN_SCALE = 1;
   const MAX_SCALE = 4;
+  const [zoomFitMode, setZoomFitMode] = useState<"contain" | "cover" | "fill">("contain");
+  const [zoomToastText, setZoomToastText] = useState("");
+  const [showZoomToast, setShowZoomToast] = useState(false);
+  const zoomToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapTimeRef = useRef(0);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   // Chỉ flip khi vượt ngưỡng zoom (scale > 1) — phục vụ điều kiện hiện nút Reset, không bị thay đổi 60Hz.
   const [isZoomed, setIsZoomed] = useState(false);
@@ -197,6 +202,42 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
     const zoomed = s > 1.001;
     setIsZoomed((prev) => (prev !== zoomed ? zoomed : prev));
   }, []);
+
+  // Chuyển đổi qua lại các chế độ tỉ lệ khung hình (Gốc -> Phóng to lấp đầy -> Kéo giãn)
+  const cycleZoomFitMode = useCallback(() => {
+    let nextMode: "contain" | "cover" | "fill" = "contain";
+    let label = "";
+    if (zoomFitMode === "contain") {
+      nextMode = "cover";
+      label = "Tỉ lệ: Phóng to tràn viền (Cover)";
+      videoScaleRef.current = 1;
+      videoOffsetRef.current = { x: 0, y: 0 };
+      applyVideoTransform();
+      updateZoomDisplay();
+    } else if (zoomFitMode === "cover") {
+      nextMode = "fill";
+      label = "Tỉ lệ: Kéo giãn toàn màn hình (Stretch)";
+      videoScaleRef.current = 1;
+      videoOffsetRef.current = { x: 0, y: 0 };
+      applyVideoTransform();
+      updateZoomDisplay();
+    } else {
+      nextMode = "contain";
+      label = "Tỉ lệ: Chuẩn gốc (Fit)";
+      videoScaleRef.current = 1;
+      videoOffsetRef.current = { x: 0, y: 0 };
+      applyVideoTransform();
+      updateZoomDisplay();
+    }
+    setZoomFitMode(nextMode);
+    setZoomToastText(label);
+    setShowZoomToast(true);
+    if (zoomToastTimeoutRef.current) clearTimeout(zoomToastTimeoutRef.current);
+    zoomToastTimeoutRef.current = setTimeout(
+      () => setShowZoomToast(false),
+      1500,
+    );
+  }, [zoomFitMode, applyVideoTransform, updateZoomDisplay]);
 
   // Find all episodes of selected server to facilitate navigation
   const currentServerEpisodes =
@@ -990,9 +1031,18 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
       e.preventDefault();
       e.stopPropagation();
+
+      const now = Date.now();
+      if (now - lastTapTimeRef.current < 300) {
+        // Double click -> toggle phóng to tràn viền
+        cycleZoomFitMode();
+        lastTapTimeRef.current = 0;
+        return;
+      }
+      lastTapTimeRef.current = now;
       handlePlayerTap();
     },
-    [handlePlayerTap, isInteractiveTarget],
+    [handlePlayerTap, isInteractiveTarget, cycleZoomFitMode],
   );
 
   // Touch handler riêng cho mobile — phản hồi ngay tại touchend, không chờ 300ms click delay
@@ -1008,9 +1058,18 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
 
       e.preventDefault();
       touchHandledRef.current = true;
+
+      const now = Date.now();
+      if (now - lastTapTimeRef.current < 300) {
+        // Double tap trên mobile -> toggle phóng to tràn viền
+        cycleZoomFitMode();
+        lastTapTimeRef.current = 0;
+        return;
+      }
+      lastTapTimeRef.current = now;
       handlePlayerTap();
     },
-    [handlePlayerTap, isInteractiveTarget],
+    [handlePlayerTap, isInteractiveTarget, cycleZoomFitMode],
   );
 
   const handleSeekChange = useCallback(
@@ -1322,7 +1381,13 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
           >
             <video
               ref={videoRef}
-              className="w-full h-full object-contain"
+              className={`w-full h-full transition-[object-fit] duration-300 ${
+                zoomFitMode === "cover"
+                  ? "object-cover"
+                  : zoomFitMode === "fill"
+                    ? "object-fill"
+                    : "object-contain"
+              }`}
               onClick={handlePlayerClick}
               onTouchEnd={handlePlayerTouchEnd}
               playsInline
@@ -1332,6 +1397,16 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
                 touchAction: isLandscapeFullscreen ? "none" : undefined,
               }}
             />
+
+            {/* Zoom Mode Toast Alert (Hiện khi bấm đổi tỉ lệ hoặc double-tap) */}
+            {showZoomToast && (
+              <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-full bg-black/85 backdrop-blur-md border border-brand-violet/50 shadow-xl shadow-brand-violet/20 flex items-center gap-2 animate-slide-up pointer-events-none">
+                <ZoomIn className="w-4 h-4 text-brand-cyan" />
+                <span className="text-xs font-bold text-white tracking-wide">
+                  {zoomToastText}
+                </span>
+              </div>
+            )}
 
             {/* Zoom indicator + Reset:
                 - Flash 1.5s sau mỗi gesture (showZoomIndicator)
@@ -1721,6 +1796,31 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
                           </div>
                         )}
                       </div>
+
+                      {/* Aspect Ratio / Zoom Fit Mode Button */}
+                      {playMode === "hls" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cycleZoomFitMode();
+                          }}
+                          className={`text-xs font-extrabold px-2.5 py-1 rounded-lg border cursor-pointer transition-all duration-200 active:scale-95 flex items-center gap-1.5 ${
+                            zoomFitMode !== "contain"
+                              ? "bg-brand-violet/20 border-brand-violet/50 text-brand-cyan hover:bg-brand-violet/30"
+                              : "bg-white/5 border-white/10 text-slate-300 hover:text-white hover:border-white/20 hover:bg-white/10"
+                          }`}
+                          title="Đổi tỉ lệ hiển thị / Phóng to tràn viền"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">
+                            {zoomFitMode === "cover"
+                              ? "Tràn viền"
+                              : zoomFitMode === "fill"
+                                ? "Kéo giãn"
+                                : "Gốc"}
+                          </span>
+                        </button>
+                      )}
 
                       {/* Picture-in-Picture Button */}
                       {isPipSupported && playMode === "hls" && (
