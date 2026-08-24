@@ -491,36 +491,38 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn(
+                console.error(
                   "HLS fatal network error, trying to recover...",
                   data,
                 );
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn(
+                console.error(
                   "HLS fatal media error, trying to recover...",
                   data,
                 );
                 hls.recoverMediaError();
                 break;
               default:
-                console.warn("HLS error event:", data);
+                console.error(
+                  "HLS unrecoverable error, switching to Embed Player...",
+                  data,
+                );
+                setPlayMode("embed");
                 break;
             }
           }
         });
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        // Native HLS (mainly Safari iOS & macOS)
+        // Native HLS (mainly Safari iOS)
         video.src = hlsUrl;
-        const onLoadedMetadata = () => {
-          if (overrideEpisodeRef.current) {
-            video.play().catch(() => {});
-          } else {
-            checkAndShowResume();
-          }
-        };
-        video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
+        video.addEventListener("loadedmetadata", () => {
+          checkAndShowResume();
+        });
+      } else {
+        // browser does not support HLS at all, fallback to Embed
+        setPlayMode("embed");
       }
     });
 
@@ -531,7 +533,8 @@ export const WatchPlayerClient: React.FC<WatchPlayerClientProps> = ({
         hlsRef.current = null;
       }
     };
-  }, [activeEpisode.link_m3u8, playMode, checkAndShowResume]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEpisode.link_m3u8, playMode]);
 
   // 4. Progress Auto-Save Timer & Video events hook
   useEffect(() => {
